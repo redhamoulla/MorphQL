@@ -4,9 +4,9 @@
 
 ## Paper
 
-- [English paper (PDF)](https://drive.google.com/file/d/1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q/view)
-- LaTeX source: [`paper/`](paper/)
-- Build locally: `./build_paper.sh`
+- [English paper (PDF)](paper/MorphoQL_Paper_English.pdf)
+- [Complete LaTeX source](paper/MorphoQL_Paper_English.tex)
+- Rebuild locally: `./build_paper.sh`
 
 The paper describes the formal semantics, three equivalent execution plans, coefficient-level provenance, reproducible execution witnesses, synthetic retail benchmarks, and the limits of the current observational study.
 

@@ -1,9 +1,9 @@
 # Paper
 
-The English manuscript source is stored in `parts/`. Run `../build_paper.sh` to reconstruct `MorphoQL_Paper_English.tex`.
+**MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations**  
+Redha Moulla - AXIA, France
 
-Compilation additionally requires the figure bundle distributed in the full reproducibility supplement. The current compiled PDF is available at:
-
-https://drive.google.com/file/d/1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q/view
-
-Title: **MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations**.
+- [English paper (PDF)](MorphoQL_Paper_English.pdf)
+- [Complete LaTeX source](MorphoQL_Paper_English.tex)
+- Split LaTeX source: [`parts/`](parts/)
+- Rebuild from the repository root: `./build_paper.sh`
