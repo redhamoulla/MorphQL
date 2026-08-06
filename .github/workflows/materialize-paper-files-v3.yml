@@ -1,0 +1,70 @@
+name: materialize-paper-files-v3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/materialize-paper-files-v3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install compatible Google Drive downloader
+        run: python -m pip install --quiet 'gdown==5.2.2'
+
+      - name: Materialize PDF and complete LaTeX source
+        run: |
+          set -euo pipefail
+          gdown --fuzzy 'https://drive.google.com/file/d/1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q/view?usp=sharing' -O paper/MorphoQL_Paper_English.pdf
+          test "$(stat -c%s paper/MorphoQL_Paper_English.pdf)" -eq 319871
+          echo '81d88ea1deb0496800dbabc4b16fee6beb42fdf66ccd976525c50e2c5b725fb8  paper/MorphoQL_Paper_English.pdf' | sha256sum -c -
+
+          cat paper/parts/part_*.tex > paper/MorphoQL_Paper_English.tex
+          test "$(stat -c%s paper/MorphoQL_Paper_English.tex)" -eq 84847
+          echo '486fbfbc57c53c610e7d38401125c3349fb1111b6fc66b572e67742b775f2ab1  paper/MorphoQL_Paper_English.tex' | sha256sum -c -
+
+      - name: Point documentation to repository files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('README.md')
+          text = root.read_text(encoding='utf-8')
+          text = text.replace(
+              '- [English paper (PDF)](https://drive.google.com/file/d/1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q/view)',
+              '- [English paper (PDF)](paper/MorphoQL_Paper_English.pdf)'
+          )
+          text = text.replace(
+              '- LaTeX source: [`paper/`](paper/)',
+              '- [Complete LaTeX source](paper/MorphoQL_Paper_English.tex)'
+          )
+          root.write_text(text, encoding='utf-8')
+
+          Path('paper/README.md').write_text(
+              '# Paper\n\n'
+              '**MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations**  \n'
+              'Redha Moulla — AXIA, France\n\n'
+              '- [English paper (PDF)](MorphoQL_Paper_English.pdf)\n'
+              '- [Complete LaTeX source](MorphoQL_Paper_English.tex)\n'
+              '- Split source files: [`parts/`](parts/)\n\n'
+              'The PDF and the complete LaTeX source are stored directly in this repository.\n',
+              encoding='utf-8'
+          )
+          PY
+
+      - name: Commit files to main
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md paper/README.md paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
+          git rm .github/workflows/materialize-paper-files.yml .github/workflows/materialize-paper-files-v2.yml .github/workflows/materialize-paper-files-v3.yml
+          git commit -m 'Add PDF and complete LaTeX source'
+          git push
