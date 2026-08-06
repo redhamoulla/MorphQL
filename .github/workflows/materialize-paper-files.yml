@@ -1,0 +1,108 @@
+name: materialize-paper-files
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/materialize-paper-files.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python and LaTeX dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet numpy matplotlib
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            latexmk poppler-utils fonts-dejavu-core \
+            texlive-xetex texlive-latex-extra texlive-fonts-recommended \
+            texlive-science texlive-pictures
+
+      - name: Generate figures, complete LaTeX source, and PDF
+        run: |
+          set -euo pipefail
+          python paper/make_figures.py
+          cat paper/parts/part_*.tex > paper/MorphoQL_Paper_English.tex
+
+          test "$(stat -c%s paper/MorphoQL_Paper_English.tex)" -eq 84847
+          echo '486fbfbc57c53c610e7d38401125c3349fb1111b6fc66b572e67742b775f2ab1  paper/MorphoQL_Paper_English.tex' | sha256sum -c -
+
+          cp paper/MorphoQL_Paper_English.tex paper/MorphoQL_Paper_English.build.tex
+          sed -i 's/\\setsansfont{Inter}/\\setsansfont{DejaVu Sans}/' paper/MorphoQL_Paper_English.build.tex
+          (
+            cd paper
+            latexmk -xelatex -interaction=nonstopmode -halt-on-error MorphoQL_Paper_English.build.tex
+          )
+          mv paper/MorphoQL_Paper_English.build.pdf paper/MorphoQL_Paper_English.pdf
+          rm -f paper/MorphoQL_Paper_English.build.tex
+
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          pdf = Path('paper/MorphoQL_Paper_English.pdf').read_bytes()
+          if len(pdf) < 100_000:
+              raise SystemExit(f'PDF is unexpectedly small: {len(pdf)} bytes')
+          if not pdf.startswith(b'%PDF-'):
+              raise SystemExit('Generated file is not a PDF')
+          if b'%%EOF' not in pdf[-4096:]:
+              raise SystemExit('PDF end marker is missing')
+          pages = subprocess.check_output(
+              ['pdfinfo', 'paper/MorphoQL_Paper_English.pdf'], text=True
+          )
+          page_line = next(line for line in pages.splitlines() if line.startswith('Pages:'))
+          page_count = int(page_line.split(':', 1)[1].strip())
+          if page_count < 25:
+              raise SystemExit(f'Unexpected page count: {page_count}')
+          print(f'Validated PDF: {len(pdf)} bytes, {page_count} pages')
+          PY
+          sha256sum paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
+
+      - name: Use repository-local paper links
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('README.md')
+          text = root.read_text(encoding='utf-8')
+          text = re.sub(
+              r'- \[English paper \(PDF\)\]\([^\n]+\)',
+              '- [English paper (PDF)](paper/MorphoQL_Paper_English.pdf)',
+              text,
+          )
+          text = text.replace(
+              '- LaTeX source: [`paper/`](paper/)',
+              '- [Complete LaTeX source](paper/MorphoQL_Paper_English.tex)',
+          )
+          root.write_text(text, encoding='utf-8')
+
+          Path('paper/README.md').write_text(
+              '# Paper\n\n'
+              '**MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations**  \n'
+              'Redha Moulla — AXIA, France\n\n'
+              '- [English paper (PDF)](MorphoQL_Paper_English.pdf)\n'
+              '- [Complete LaTeX source](MorphoQL_Paper_English.tex)\n'
+              '- Split LaTeX source: [`parts/`](parts/)\n\n'
+              'The PDF and complete LaTeX source are stored directly in this repository.\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Commit the PDF and complete LaTeX source to main
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md paper/README.md paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
+          git rm -f .github/workflows/materialize-paper-files.yml .github/workflows/publish-paper-pdf.yml || true
+          git commit -m 'Add final PDF and complete LaTeX source'
+          git push
