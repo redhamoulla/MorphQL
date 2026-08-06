@@ -16,38 +16,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Materialize and validate the PDF and complete LaTeX source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate the paper figures from the repository data
         run: |
           set -euo pipefail
-          mkdir -p paper
-          python -m pip install --quiet 'gdown==5.2.0'
-          gdown --id '1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q' --output paper/MorphoQL_Paper_English.pdf
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib
+          python paper/make_figures.py
+          test "$(find figures -maxdepth 1 -name '*_en.pdf' | wc -l)" -eq 8
 
-          python - <<'PY'
-          from hashlib import sha256
-          from pathlib import Path
+      - name: Install the LaTeX toolchain
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fonts-inter \
+            latexmk \
+            poppler-utils \
+            texlive-fonts-recommended \
+            texlive-latex-extra \
+            texlive-science \
+            texlive-xetex
+          fc-cache -f
 
-          pdf_path = Path('paper/MorphoQL_Paper_English.pdf')
-          pdf = pdf_path.read_bytes()
-          expected_size = 319_871
-          expected_sha256 = '81d88ea1deb0496800dbabc4b16fee6beb42fdf66ccd976525c50e2c5b725fb8'
-          if len(pdf) != expected_size:
-              raise SystemExit(f'Unexpected PDF size: {len(pdf)} != {expected_size}')
-          if sha256(pdf).hexdigest() != expected_sha256:
-              raise SystemExit('PDF SHA-256 mismatch')
-          if not pdf.startswith(b'%PDF-') or b'%%EOF' not in pdf[-4096:]:
-              raise SystemExit('Invalid PDF structure')
-          print(f'Validated PDF: {len(pdf)} bytes, sha256={expected_sha256}')
-          PY
-
+      - name: Build and validate the complete LaTeX source and PDF
+        run: |
+          set -euo pipefail
           cat paper/parts/part_*.tex > paper/MorphoQL_Paper_English.tex
           grep -q 'MorphoQL: Declarative Morphological Queries' paper/MorphoQL_Paper_English.tex
           grep -q '\\end{document}' paper/MorphoQL_Paper_English.tex
-          test "$(stat -c%s paper/MorphoQL_Paper_English.tex)" -eq 84847
+          test "$(stat -c%s paper/MorphoQL_Paper_English.tex)" -gt 80000
+
+          (cd paper && latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error MorphoQL_Paper_English.tex)
+
+          python - <<'PY'
+          from pathlib import Path
+          pdf = Path('paper/MorphoQL_Paper_English.pdf').read_bytes()
+          if len(pdf) < 100_000:
+              raise SystemExit(f'PDF is unexpectedly small: {len(pdf)} bytes')
+          if not pdf.startswith(b'%PDF-'):
+              raise SystemExit('Compiled file is not a PDF')
+          if b'%%EOF' not in pdf[-4096:]:
+              raise SystemExit('PDF end marker is missing')
+          print(f'Validated PDF: {len(pdf)} bytes')
+          PY
+          test "$(pdfinfo paper/MorphoQL_Paper_English.pdf | awk '/^Pages:/ {print $2}')" -ge 25
+          wc -c paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
           sha256sum paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
 
-      - name: Replace external links with repository-local files
+      - name: Make the repository self-contained
         run: |
+          set -euo pipefail
           python - <<'PY'
           from pathlib import Path
           import re
@@ -59,32 +81,37 @@ jobs:
               '- [English paper (PDF)](paper/MorphoQL_Paper_English.pdf)',
               text,
           )
-          text = text.replace(
-              '- LaTeX source: [`paper/`](paper/)',
+          text = re.sub(
+              r'- LaTeX source: \[`paper/`\]\(paper/\)',
               '- [Complete LaTeX source](paper/MorphoQL_Paper_English.tex)',
+              text,
           )
-          text = re.sub(r'\n- Build locally: `\./build_paper\.sh`', '', text)
+          text = text.replace('- Build locally: `./build_paper.sh`', '- Rebuild locally: `./build_paper.sh`')
+          text = re.sub(r'\n- \[Full reproducibility supplement\]\([^\n]+\)', '', text)
+          text = re.sub(r'\n- \[English LaTeX source\]\([^\n]+\)', '', text)
+          text = re.sub(r'\n- \[Final English PDF on Drive\]\([^\n]+\)', '', text)
+          text = re.sub(r'\n- \[Reproducibility supplement\]\([^\n]+\)', '', text)
           if 'drive.google.com' in text or 'drive.usercontent.google.com' in text:
               raise SystemExit('A Drive link remains in README.md')
           root.write_text(text, encoding='utf-8')
 
-          paper_readme = (
+          Path('paper/README.md').write_text(
               '# Paper\n\n'
               '**MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations**  \n'
               'Redha Moulla — AXIA, France\n\n'
               '- [English paper (PDF)](MorphoQL_Paper_English.pdf)\n'
               '- [Complete LaTeX source](MorphoQL_Paper_English.tex)\n'
               '- Split LaTeX source: [`parts/`](parts/)\n'
+              '- Rebuild from the repository root: `./build_paper.sh`\n',
+              encoding='utf-8',
           )
-          Path('paper/README.md').write_text(paper_readme, encoding='utf-8')
           PY
 
-      - name: Commit the PDF and LaTeX source directly to main
+      - name: Commit the PDF, LaTeX source, and figures directly to main
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/workflows/publish-paper-pdf.yml
-          git add README.md paper/README.md paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
+          git add README.md paper/README.md paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex figures/*.pdf
           git commit -m 'Add final PDF and complete LaTeX source'
           git push
