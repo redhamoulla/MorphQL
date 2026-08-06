@@ -1,0 +1,139 @@
+name: finalize-paper-files
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/finalize-paper-files.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate manuscript figures
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas scipy matplotlib
+          python paper/make_figures.py
+          test -f figures/representative_retail_series_en.pdf
+          test -f figures/f1_macro_methods_en.pdf
+          test -f figures/f1_by_query_en.pdf
+          test -f figures/f1_by_noise_en.pdf
+          test -f figures/event_count_methods_en.pdf
+          test -f figures/wtmm_ablation_en.pdf
+          test -f figures/compiler_microbenchmark_narrow_en.pdf
+          test -f figures/compiler_microbenchmark_wide_en.pdf
+
+      - name: Install XeLaTeX
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            latexmk texlive-xetex texlive-latex-extra texlive-science \
+            fonts-dejavu-core fonts-dejavu-extra fonts-inter
+
+      - name: Build and validate PDF and complete LaTeX source
+        run: |
+          set -euo pipefail
+          cat paper/parts/part_*.tex > paper/MorphoQL_Paper_English.tex
+          grep -q '\\documentclass' paper/MorphoQL_Paper_English.tex
+          grep -q 'MorphoQL: Declarative Morphological Queries' paper/MorphoQL_Paper_English.tex
+          grep -q '\\end{document}' paper/MorphoQL_Paper_English.tex
+          test "$(stat -c%s paper/MorphoQL_Paper_English.tex)" -gt 80000
+          (
+            cd paper
+            latexmk -xelatex -interaction=nonstopmode -halt-on-error MorphoQL_Paper_English.tex
+          )
+          python - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+          pdf = Path('paper/MorphoQL_Paper_English.pdf').read_bytes()
+          tex = Path('paper/MorphoQL_Paper_English.tex').read_bytes()
+          if len(pdf) < 100_000:
+              raise SystemExit(f'PDF too small: {len(pdf)} bytes')
+          if not pdf.startswith(b'%PDF-'):
+              raise SystemExit('Missing PDF signature')
+          if b'%%EOF' not in pdf[-4096:]:
+              raise SystemExit('Missing PDF EOF marker')
+          if len(tex) < 80_000 or b'\\end{document}' not in tex:
+              raise SystemExit('Incomplete LaTeX source')
+          print(f'PDF bytes: {len(pdf)}')
+          print(f'PDF SHA-256: {sha256(pdf).hexdigest()}')
+          print(f'TeX bytes: {len(tex)}')
+          print(f'TeX SHA-256: {sha256(tex).hexdigest()}')
+          PY
+
+      - name: Use repository-local paper links
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('README.md')
+          text = root.read_text(encoding='utf-8')
+          text = re.sub(
+              r'- \[English paper \(PDF\)\]\([^\n]+\)',
+              '- [English paper (PDF)](paper/MorphoQL_Paper_English.pdf)',
+              text,
+          )
+          if '- [English paper (PDF)](paper/MorphoQL_Paper_English.pdf)' not in text:
+              marker = '## Paper\n'
+              text = text.replace(marker, marker + '\n- [English paper (PDF)](paper/MorphoQL_Paper_English.pdf)\n- [Complete LaTeX source](paper/MorphoQL_Paper_English.tex)\n', 1)
+          text = re.sub(
+              r'- LaTeX source: \[`paper/`\]\(paper/\)',
+              '- [Complete LaTeX source](paper/MorphoQL_Paper_English.tex)',
+              text,
+          )
+          text = re.sub(r'\n- Build locally: `\./build_paper\.sh`', '', text)
+          text = re.sub(r'\n- \[Complete LaTeX source\]\(paper/MorphoQL_Paper_English\.tex\)\n- \[Complete LaTeX source\]\(paper/MorphoQL_Paper_English\.tex\)', '\n- [Complete LaTeX source](paper/MorphoQL_Paper_English.tex)', text)
+          text = '\n'.join(line for line in text.splitlines() if 'drive.google.com' not in line and 'drive.usercontent.google.com' not in line) + '\n'
+          root.write_text(text, encoding='utf-8')
+
+          Path('paper/README.md').write_text(
+              '# Paper\n\n'
+              '**MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations**  \n'
+              'Redha Moulla — AXIA, France\n\n'
+              '- [English paper (PDF)](MorphoQL_Paper_English.pdf)\n'
+              '- [Complete LaTeX source](MorphoQL_Paper_English.tex)\n'
+              '- Split LaTeX source: [`parts/`](parts/)\n',
+              encoding='utf-8',
+          )
+          PY
+          ! grep -R -n 'drive.google.com\|drive.usercontent.google.com' README.md paper/README.md
+
+      - name: Commit files directly to main
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md paper/README.md \
+            paper/MorphoQL_Paper_English.pdf \
+            paper/MorphoQL_Paper_English.tex \
+            figures/*.pdf
+          if git diff --cached --quiet; then
+            echo 'Paper files are already present and current.'
+            exit 0
+          fi
+          git commit -m 'Add PDF and complete LaTeX source directly to repository'
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            git pull --rebase origin main
+            sleep $((attempt * 2))
+          done
+          echo 'Unable to push paper files after three attempts.' >&2
+          exit 1
