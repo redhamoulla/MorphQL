@@ -11,14 +11,5 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           set -euo pipefail
-          echo "base64_chars=$(wc -c < .paper_payload/pdf.b64)"
-          base64 -d .paper_payload/pdf.b64 > /tmp/paper.pdf
-          echo "pdf_bytes=$(wc -c < /tmp/paper.pdf)"
-          head -c 5 /tmp/paper.pdf
-          echo
-          python -m pip install --quiet pypdf
-          python - <<'PY'
-          from pypdf import PdfReader
-          reader = PdfReader('/tmp/paper.pdf')
-          print('pages=', len(reader.pages))
-          PY
+          wc -c .paper_payload/pdf.b64 .paper_payload/test_02_03.bin
+          sha256sum .paper_payload/test_02_03.bin
