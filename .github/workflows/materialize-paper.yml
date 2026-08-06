@@ -23,10 +23,8 @@ jobs:
           set -euo pipefail
           python -m pip install --quiet gdown pypdf
           mkdir -p paper
-          gdown --fuzzy 'https://drive.google.com/file/d/1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q/view' \
-            -O paper/MorphoQL_Paper_English.pdf
-          gdown --fuzzy 'https://drive.google.com/file/d/1yxBLxwpNz8uDfSlr5wmBS2_Q2o98n9tF/view' \
-            -O paper/MorphoQL_Paper_English.tex
+          gdown '1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q' -O paper/MorphoQL_Paper_English.pdf
+          gdown '1yxBLxwpNz8uDfSlr5wmBS2_Q2o98n9tF' -O paper/MorphoQL_Paper_English.tex
 
       - name: Validate both deliverables
         run: |
