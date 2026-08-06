@@ -1,0 +1,92 @@
+name: materialize-paper
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/materialize-paper.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download the PDF and complete LaTeX source
+        run: |
+          set -euo pipefail
+          mkdir -p paper
+          curl -L --fail --retry 5 --retry-delay 2 \
+            'https://drive.usercontent.google.com/download?id=1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q&export=download&confirm=t' \
+            -o paper/MorphoQL_Paper_English.pdf
+          curl -L --fail --retry 5 --retry-delay 2 \
+            'https://drive.usercontent.google.com/download?id=1yxBLxwpNz8uDfSlr5wmBS2_Q2o98n9tF&export=download&confirm=t' \
+            -o paper/MorphoQL_Paper_English.tex
+
+      - name: Validate both deliverables
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet pypdf
+          python - <<'PY'
+          from pathlib import Path
+          from pypdf import PdfReader
+
+          pdf = Path('paper/MorphoQL_Paper_English.pdf')
+          tex = Path('paper/MorphoQL_Paper_English.tex')
+          assert pdf.read_bytes()[:5] == b'%PDF-', 'Downloaded PDF has no PDF header'
+          reader = PdfReader(str(pdf))
+          assert len(reader.pages) == 31, f'Expected 31 pages, got {len(reader.pages)}'
+          source = tex.read_text(encoding='utf-8')
+          assert source.lstrip().startswith('\\documentclass'), 'LaTeX source has no documentclass'
+          assert 'MorphoQL: Declarative Morphological Queries' in source, 'Unexpected LaTeX source'
+          assert '\\begin{document}' in source and '\\end{document}' in source
+          print(f'PDF: {pdf.stat().st_size} bytes, {len(reader.pages)} pages')
+          print(f'LaTeX: {tex.stat().st_size} bytes')
+          PY
+          (cd paper && sha256sum MorphoQL_Paper_English.pdf MorphoQL_Paper_English.tex > SHA256SUMS)
+
+      - name: Replace external paper links with repository files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          readme = Path('README.md')
+          text = readme.read_text(encoding='utf-8')
+          lines = [line for line in text.splitlines() if 'drive.google.com' not in line]
+          text = '\n'.join(lines) + '\n'
+          pdf_line = '- [English paper (PDF)](paper/MorphoQL_Paper_English.pdf)'
+          tex_line = '- [Complete LaTeX source](paper/MorphoQL_Paper_English.tex)'
+          text = re.sub(r'- LaTeX source:.*', tex_line, text)
+          if pdf_line not in text:
+              text = text.replace('## Paper\n', '## Paper\n\n' + pdf_line + '\n' + tex_line + '\n', 1)
+          elif tex_line not in text:
+              text = text.replace(pdf_line, pdf_line + '\n' + tex_line, 1)
+          readme.write_text(text, encoding='utf-8')
+
+          Path('paper/README.md').write_text(
+              '# Paper\n\n'
+              '**MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations**  \n'
+              'Redha Moulla — AXIA, France\n\n'
+              '- [English paper (PDF)](MorphoQL_Paper_English.pdf)\n'
+              '- [Complete LaTeX source](MorphoQL_Paper_English.tex)\n'
+              '- [SHA-256 checksums](SHA256SUMS)\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Commit the PDF and LaTeX source directly to main
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/materialize-paper.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add final English PDF and complete LaTeX source'
+          git push origin main
