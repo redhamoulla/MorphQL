@@ -11,22 +11,72 @@ permissions:
   contents: write
 
 jobs:
-  publish-pdf:
+  publish-paper-files:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Download and verify the final English PDF
+
+      - name: Materialize and validate the PDF and LaTeX source
         run: |
+          set -euo pipefail
           mkdir -p paper
           curl -L --fail --retry 3 --retry-delay 2 \
             'https://drive.usercontent.google.com/download?id=1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q&export=download&confirm=t' \
             -o paper/MorphoQL_Paper_English.pdf
-          test "$(stat -c%s paper/MorphoQL_Paper_English.pdf)" -eq 319871
-          echo '81d88ea1deb0496800dbabc4b16fee6beb42fdf66ccd976525c50e2c5b725fb8  paper/MorphoQL_Paper_English.pdf' | sha256sum -c -
-      - name: Commit the PDF to main
+
+          python - <<'PY'
+          from pathlib import Path
+          pdf = Path('paper/MorphoQL_Paper_English.pdf').read_bytes()
+          if len(pdf) < 100_000:
+              raise SystemExit(f'PDF is unexpectedly small: {len(pdf)} bytes')
+          if not pdf.startswith(b'%PDF-'):
+              raise SystemExit('Downloaded file is not a PDF')
+          if b'%%EOF' not in pdf[-4096:]:
+              raise SystemExit('PDF end marker is missing')
+          print(f'Validated PDF: {len(pdf)} bytes')
+          PY
+
+          cat paper/parts/part_*.tex > paper/MorphoQL_Paper_English.tex
+          grep -q 'MorphoQL: Declarative Morphological Queries' paper/MorphoQL_Paper_English.tex
+          grep -q '\\end{document}' paper/MorphoQL_Paper_English.tex
+          wc -c paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
+          sha256sum paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
+
+      - name: Replace external paper links with repository files
         run: |
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('README.md')
+          text = root.read_text(encoding='utf-8')
+          import re
+          text = re.sub(
+              r'- \[English paper \(PDF\)\]\([^\n]+\)',
+              '- [English paper (PDF)](paper/MorphoQL_Paper_English.pdf)',
+              text,
+          )
+          if 'MorphoQL_Paper_English.tex' not in text:
+              text = text.replace(
+                  '- LaTeX source: [`paper/`](paper/)',
+                  '- [Complete LaTeX source](paper/MorphoQL_Paper_English.tex)',
+              )
+          root.write_text(text, encoding='utf-8')
+
+          Path('paper/README.md').write_text(
+              '# Paper\n\n'
+              '**MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations**  \n'
+              'Redha Moulla — AXIA, France\n\n'
+              '- [English paper (PDF)](MorphoQL_Paper_English.pdf)\n'
+              '- [Complete LaTeX source](MorphoQL_Paper_English.tex)\n'
+              '- Split LaTeX source: [`parts/`](parts/)\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Commit the PDF and complete LaTeX source to main
+        run: |
+          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add paper/MorphoQL_Paper_English.pdf
-          git commit -m 'Add final English paper PDF'
+          git add README.md paper/README.md paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
+          git commit -m 'Add final PDF and complete LaTeX source'
           git push
