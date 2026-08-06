@@ -114,7 +114,12 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f \
+            .github/workflows/materialize-paper-files.yml \
+            .github/workflows/materialize-paper-files-v2.yml \
+            .github/workflows/publish-paper-pdf.yml
           git add README.md paper/README.md paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex paper/SHA256SUMS figures/*.pdf
           git commit -m 'Add final PDF and complete LaTeX source'
-          git pull --rebase origin main
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:main
