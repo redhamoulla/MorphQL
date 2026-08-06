@@ -1,37 +1,14 @@
 # MorphoQL
 
-**Declarative morphological queries over multiscale wavelet event relations.**
-
-MorphoQL Core 0.2 is a compact SQL-like language for querying ordered chains of signed events extracted from time series.
-
-```sql
-SELECT SERIES_ID, u, d, SCORE
-FROM sales
-MATCH (
-  EDGE UP AS u
-  THEN EDGE DOWN AS d WITHIN 8d..14d
-)
-WHERE MIN_STRENGTH >= 1.0
-ORDER BY SCORE DESC
-LIMIT 20;
-```
-
-The language describes observable morphology—edge direction, order, and temporal gaps—not business causes.
+**MorphoQL** is a declarative query language for morphological patterns in time series. It converts signed multi-scale events—derived from first differences, Gaussian derivatives, aggregated wavelet maxima, or chained modulus-maxima lines—into an auditable event relation that can be queried with an SQL-like `EDGE–THEN–WITHIN` core.
 
 ## Paper
 
-- **Title:** *MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations*
-- [Open the current English PDF](https://drive.google.com/file/d/1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q/view)
-- The full English LaTeX manuscript is stored in `paper/parts/`. `./build_paper.sh` reconstructs the single `.tex` source. The compiled PDF and all figure files are included in the full reproducibility supplement linked below.
+- [English paper (PDF)](https://drive.google.com/file/d/1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q/view)
+- LaTeX source: [`paper/`](paper/)
+- Build locally: `./build_paper.sh`
 
-## Included code
-
-- `src/morphoql.py` — parser, event-relation contract, three execution engines, projection, and execution records
-- `src/wavelet_events.py` — first-difference, single-scale DoG, aggregated multiscale-maxima, and maximum-line extractors
-- `tests/test_core.py` — parser, engine-equivalence, multi-series, projection, and extraction tests
-- `examples/quickstart.py` — minimal event-relation example
-- `examples/retail_demo.py` — retail-like sawtooth series and maximum-line query
-- `config/` and `results/` — selected registered configurations and audited outputs from the paper
+The paper describes the formal semantics, three equivalent execution plans, coefficient-level provenance, reproducible execution witnesses, synthetic retail benchmarks, and the limits of the current observational study.
 
 ## Installation
 
@@ -41,27 +18,57 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Python 3.11 or later is required.
-
 ## Quick start
 
-```bash
-python examples/quickstart.py
-python examples/retail_demo.py
+```python
+from morphoql import Event, EventRelation, execute_query, parse_query
+
+relation = EventRelation([
+    Event(series_id="sales", time=10.0, sign=+1, strength=2.4),
+    Event(series_id="sales", time=19.0, sign=-1, strength=3.1),
+])
+
+query = parse_query("""
+SELECT SERIES_ID, u, d, SCORE
+FROM events
+MATCH EDGE UP AS u
+THEN EDGE DOWN AS d WITHIN 8d..14d
+ORDER BY SCORE DESC
+""")
+
+result = execute_query(query, relation)
+print(result.rows)
 ```
 
-## Tests
+Runnable examples are available in [`examples/`](examples/), including a retail-oriented demonstration.
+
+## Validation
 
 ```bash
 ./run_validation_fast.sh
 ```
 
-The compact repository validates the public core. The larger factorial validation, microbenchmark, bootstrap evaluation, ablation, lineage manifests, paper figures, compiled PDF, and observational-study aggregation artifacts are available in the [full reproducibility supplement](https://drive.google.com/file/d/1fHGQK0lcaYx3pCACpofMtdD5HBW8EWUC/view).
+The validation suite checks the parser, strict typing, the three execution engines, event-relation invariants, provenance, deterministic ordering, projection, output manifests, and witness verification.
 
-## Scope
+## Repository layout
 
-A recomputed execution record establishes consistency relative to the supplied relation, implementation, and query. It is not a cryptographic signature, a causal explanation, or a guarantee that the event relation exhaustively represents the original signal.
+```text
+src/        language, execution engines, event extraction
+examples/   minimal and retail-oriented examples
+tests/      core validation tests
+config/     registered preprocessing and extractor configurations
+results/    representative audited outputs
+paper/      English LaTeX manuscript source
+```
+
+## Scientific scope
+
+MorphoQL queries observable temporal morphology, not business causes. A pattern such as an upward edge followed by a downward edge after 8–14 days can be retrieved declaratively; interpreting that pattern as a promotion, stockout, campaign effect, or another causal event requires external metadata or a causal model.
+
+## Citation
+
+Citation metadata are provided in [`CITATION.cff`](CITATION.cff).
 
 ## License
 
-The repository is available for scientific inspection and non-commercial reproduction under the terms in [LICENSE](LICENSE).
+See [`LICENSE`](LICENSE).
