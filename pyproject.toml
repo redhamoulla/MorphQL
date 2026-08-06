@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "morphoql-core"
+version = "0.8.0"
+description = "Declarative edge-chain queries over auditable multiscale time-series event relations"
+requires-python = ">=3.11"
+dependencies = [
+  "lark>=1.2",
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "scipy>=1.12",
+  "matplotlib>=3.8",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = [
+  "morphoql",
+  "configuration",
+  "benchmark_morphoql_v7",
+  "postprocess_v7",
+  "ablation_wtmm_v7",
+  "verify_results_v8",
+  "additional_seed_replication_v7",
+  "observational_aggregation_template_v7",
+]

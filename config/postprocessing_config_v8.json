@@ -1,0 +1,9 @@
+{
+  "config_kind": "postprocessing",
+  "dedup_tolerance_days": 2.0,
+  "duplicate_selection_policy": "retain the first match in user-visible order; reject a later match when all corresponding event times differ by at most dedup_tolerance",
+  "limit_stage": "after_ordering_and_deduplication",
+  "order_with_score_desc": "descending_score_then_series_id_then_event_times_then_event_ids",
+  "order_without_clause": "series_id_then_event_times_then_descending_score_then_event_ids",
+  "schema_version": "morphoql.configuration/0.8"
+}
