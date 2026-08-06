@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -65,7 +67,7 @@ jobs:
           PY
           test "$(pdfinfo paper/MorphoQL_Paper_English.pdf | awk '/^Pages:/ {print $2}')" -ge 25
           wc -c paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
-          sha256sum paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex
+          sha256sum paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex > paper/SHA256SUMS
 
       - name: Make the repository self-contained
         run: |
@@ -98,7 +100,7 @@ jobs:
           Path('paper/README.md').write_text(
               '# Paper\n\n'
               '**MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations**  \n'
-              'Redha Moulla — AXIA, France\n\n'
+              'Redha Moulla - AXIA, France\n\n'
               '- [English paper (PDF)](MorphoQL_Paper_English.pdf)\n'
               '- [Complete LaTeX source](MorphoQL_Paper_English.tex)\n'
               '- Split LaTeX source: [`parts/`](parts/)\n'
@@ -112,6 +114,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add README.md paper/README.md paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex figures/*.pdf
+          git add README.md paper/README.md paper/MorphoQL_Paper_English.pdf paper/MorphoQL_Paper_English.tex paper/SHA256SUMS figures/*.pdf
           git commit -m 'Add final PDF and complete LaTeX source'
-          git push
+          git pull --rebase origin main
+          git push origin HEAD:main
