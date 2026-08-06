@@ -21,18 +21,16 @@ jobs:
       - name: Download the PDF and complete LaTeX source
         run: |
           set -euo pipefail
+          python -m pip install --quiet gdown pypdf
           mkdir -p paper
-          curl -L --fail --retry 5 --retry-delay 2 \
-            'https://drive.usercontent.google.com/download?id=1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q&export=download&confirm=t' \
-            -o paper/MorphoQL_Paper_English.pdf
-          curl -L --fail --retry 5 --retry-delay 2 \
-            'https://drive.usercontent.google.com/download?id=1yxBLxwpNz8uDfSlr5wmBS2_Q2o98n9tF&export=download&confirm=t' \
-            -o paper/MorphoQL_Paper_English.tex
+          gdown --fuzzy 'https://drive.google.com/file/d/1VyjRZYagfj_DO_BYkGeLcpS-T8VYBh8q/view' \
+            -O paper/MorphoQL_Paper_English.pdf
+          gdown --fuzzy 'https://drive.google.com/file/d/1yxBLxwpNz8uDfSlr5wmBS2_Q2o98n9tF/view' \
+            -O paper/MorphoQL_Paper_English.tex
 
       - name: Validate both deliverables
         run: |
           set -euo pipefail
-          python -m pip install --quiet pypdf
           python - <<'PY'
           from pathlib import Path
           from pypdf import PdfReader
