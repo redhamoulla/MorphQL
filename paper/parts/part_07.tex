@@ -1,0 +1,202 @@
+  \item \textbf{Small real-data study.} Five product--store series provide neither independent morphological ground truth, adequate statistical power, nor causal validation.
+  \item \textbf{Partial reproducibility of real data.} Proprietary sales and annotations are not redistributed. The schema, generic script, processing steps, and de-identified aggregates are provided, but the private inputs are unavailable.
+\end{enumerate}
+
+\section{Conclusion}
+
+MorphoQL Core 0.2 demonstrates that an event relation derived from time--scale representations can serve as the substrate of a declarative shape-query kernel. Relation-bound verification recompiles a program, recomputes the strict set, reproduces ordering, deduplication, and limit, rematerializes every projected row, and compares column order, values, and the fingerprint of the complete projected output. The nested AST schema and programmatic API enforce a strict type system without silent coercion.
+
+The validation accepts 1,200 unique positive queries, rejects 1,200 derived invalid mutations, passes 85 adversarial cases, and observes no mismatch across 800 differential cases comparing enumeration, Python joins, and SQLite. These tests support the implementation of the evaluated core without replacing a general proof of software correctness, a cryptographic signature of the witness, or validation of extractor fidelity.
+
+On the main synthetic generator, the three wavelet pipelines have point estimates above first differences. Maximum lines achieve the highest global point estimate and are more robust under high noise, but their advantage over single-scale DoG is not established at the 95\% level. Main intervals condition on fixed calibration, and pairwise contrasts are not adjusted for multiplicity. The additional-seed replication recalibrates thresholds under the fixed procedure and reverses the point ordering between aggregated maxima and maximum lines. These results motivate a hybrid planner rather than exclusive use of one representation.
+
+The observational study establishes retrospective feasibility, not general morphological accuracy or a promotional or causal interpretation. The next steps are blindly annotated ground truth over a larger collection of real series, causal preprocessing for streaming use, stronger language and detection baselines, relational optimization, and normative extension of the language one primitive at a time.
+
+\appendix
+
+\section{Maximum-Line Linking Pseudocode}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+for sign in {+1, -1}:
+    active = []
+    finished = []
+    for scale_index, scale in increasing_scales:
+        nodes = maxima[scale_index, sign]
+        candidate_links = []
+        for line in active:
+            if scale_index - line.last_scale_index <= max_scale_skip:
+                tolerance = max(2, 0.65 * scale + 1)
+                for node in nodes:
+                    if abs(node.time - line.last_time) <= tolerance:
+                        cost = abs(node.time-line.last_time)/tolerance
+                               - 0.03 * node.strength
+                        candidate_links.append((cost, line, node))
+        greedily assign links by increasing cost
+        finish lines absent for more than max_scale_skip indices
+        start one line for each unassigned node
+    keep lines covering at least min_scales distinct scales
+    compute representative time, persistence, strength,
+        scale span, and ordered supporting nodes
+merge same-sign lines separated by at most merge_days
+    while preserving the union of all supporting nodes
+assign content-addressed (series_id, event_id)
+emit events above the event threshold
+\end{lstlisting}
+
+\section{Reproducibility and Artifacts}
+
+The accompanying artifact provides source code, tests, registered configurations, reference outputs, figures, and the \LaTeX{} source. Correctness validation and load testing are separated:
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+./run_validation_fast.sh
+./run_microbenchmark.sh
+./run_full_benchmark.sh
+PYTHONPATH=src python src/verify_results_v8.py
+./build_paper_english.sh
+\end{lstlisting}
+By default, scripts write to reproduction directories and do not modify reference outputs. Setting \code{MORPHOQL\_OVERWRITE\_REFERENCE=1} enables intentional refresh. The \path{src/configuration.py} registry generates the configuration JSON files and is the common source for extraction, witnesses, and the experimental protocol.
+
+\begin{table}[H]
+\centering
+\caption{Compliance table for the main reproducible claims.}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}p{3.0cm}X X@{}}
+\toprule
+Claim & Artifact and command & Expected output \\
+\midrule
+Fast validation & \path{tests/validate_core_v02.py}; \path{./run_validation_fast.sh} & 1,200 positive, 1,200 negative, 85/85 adversarial cases \\
+Differential equivalence & same script & 800 cases, 0 mismatches across three engines \\
+Provenance and witness & \path{results/execution_witness_example_v8.json}; \path{results/execution_witness_verification_v8.json} & occurrence and SELECT rows reproduced; projector, value, and manifest tampering rejected \\
+Microbenchmark & \path{tests/run_microbenchmark_v7.py}; \path{results/compiler_microbenchmark_protocol_v7.json} & exact matrix of executed cells up to 10,000 events \\
+Benchmark and bootstrap & \path{src/benchmark_morphoql_v7.py}, \path{src/postprocess_v7.py} & all calibration candidates, 2,000 replicates \\
+Paired ablation & \path{src/ablation_wtmm_v7.py} & six variants; exploratory unadjusted intervals \\
+Additional-seed replication & \path{src/additional_seed_replication_v7.py} & 40 new calibration series, 80 evaluation series; thresholds recalibrated under the fixed procedure \\
+Numerical verification & \path{src/verify_results_v8.py} & invariants and numerical results within tolerances, excluding runtimes \\
+English figures & \path{src/make_figures_english.py} & English PDF and PNG figures \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Checksums distinguish inputs, code, and reference outputs. The implementation fingerprint included in each witness is computed over the engine and configuration registry; relation and manifest fingerprints identify the event input and ordered outputs. \code{verify\_witness} checks these claims by recomputation when the required objects are supplied. This does not prove prior existence or the identity of the witness producer. Execution times are not compared through exact equality. For the observational study, the artifacts provide the schema, generic script, and anonymized aggregates, but not proprietary inputs.
+
+\section{Complete Maximum-Line Results}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Maximum-line results on the 420-series evaluation split.}
+\begin{tabular}{lrrrrr}
+\toprule
+Query & TP & FP & FN & Precision & Recall / F1 \\
+\midrule
+Q1 & 157 & 92 & 324 & .631 & .326 / .430 \\
+Q2 & 266 & 20 & 156 & .930 & .630 / .751 \\
+Q3 & 118 & 17 & 50 & .874 & .702 / .779 \\
+Q4 & 290 & 42 & 169 & .873 & .632 / .733 \\
+Q5 & 80 & 8 & 63 & .909 & .559 / .693 \\
+Q6 & 27 & 42 & 132 & .391 & .170 / .237 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{thebibliography}{99}
+
+\bibitem{agrawal1995}
+R. Agrawal, G. Psaila, E. L. Wimmers, and M. Za\"it.
+\newblock Querying shapes of histories.
+\newblock In \emph{Proceedings of the 21st International Conference on Very Large Data Bases (VLDB)}, pages 502--514, 1995.
+
+\bibitem{allen1983}
+J. F. Allen.
+\newblock Maintaining knowledge about temporal intervals.
+\newblock \emph{Communications of the ACM}, 26(11):832--843, 1983.
+
+\bibitem{faloutsos1994}
+C. Faloutsos, M. Ranganathan, and Y. Manolopoulos.
+\newblock Fast subsequence matching in time-series databases.
+\newblock In \emph{Proceedings of ACM SIGMOD}, pages 419--429, 1994.
+
+\bibitem{mallat1992}
+S. Mallat and W. L. Hwang.
+\newblock Singularity detection and processing with wavelets.
+\newblock \emph{IEEE Transactions on Information Theory}, 38(2):617--643, 1992.
+
+\bibitem{hochheiser2004}
+H. Hochheiser and B. Shneiderman.
+\newblock Dynamic query tools for time series data sets: Timebox widgets for interactive exploration.
+\newblock \emph{Information Visualization}, 3(1):1--18, 2004. doi:10.1057/palgrave.ivs.9500061.
+
+\bibitem{maler2004}
+O. Maler and D. Ni\v{c}kovi\'c.
+\newblock Monitoring temporal properties of continuous signals.
+\newblock In \emph{FORMATS/FTRTFT}, pages 152--166, 2004. doi:10.1007/978-3-540-30206-3\_12.
+
+\bibitem{donze2010}
+A. Donz\'e and O. Maler.
+\newblock Robust satisfaction of temporal logic over real-valued signals.
+\newblock In \emph{FORMATS}, pages 92--106, 2010. doi:10.1007/978-3-642-15297-9\_9.
+
+\bibitem{gyllstrom2007}
+D. Gyllstrom, E. Wu, H.-J. Chae, Y. Diao, P. Stahlberg, and G. Anderson.
+\newblock SASE: Complex event processing over streams.
+\newblock In \emph{CIDR}, 2007.
+
+\bibitem{lin2007}
+J. Lin, E. Keogh, L. Wei, and S. Lonardi.
+\newblock Experiencing SAX: a novel symbolic representation of time series.
+\newblock \emph{Data Mining and Knowledge Discovery}, 15:107--144, 2007.
+
+\bibitem{nickovic2018}
+D. Ni\v{c}kovi\'c, O. Lebeltel, O. Maler, T. Ferr\`ere, and D. Ulus.
+\newblock AMT 2.0: Qualitative and quantitative trace analysis with extended Signal Temporal Logic.
+\newblock In \emph{TACAS}, pages 303--319, 2018. doi:10.1007/978-3-319-89963-3\_18.
+
+\bibitem{rodrigues2019}
+J. Rodrigues, D. Folgado, D. Belo, and H. Gamboa.
+\newblock SSTS: A syntactic tool for pattern search on time series.
+\newblock \emph{Information Processing \& Management}, 56(1):61--76, 2019. doi:10.1016/j.ipm.2018.09.001.
+
+\bibitem{mamouras2017}
+K. Mamouras, M. Raghothaman, R. Alur, Z. G. Ives, and S. Khanna.
+\newblock StreamQRE: Modular specification and efficient evaluation of quantitative queries over streaming data.
+\newblock In \emph{Proceedings of PLDI}, pages 693--708, 2017. doi:10.1145/3062341.3062369.
+
+\bibitem{abbas2019}
+H. Abbas, A. Rodionova, E. Bartocci, S. A. Smolka, and R. Grosu.
+\newblock Quantitative regular expressions for arrhythmia detection algorithms.
+\newblock \emph{IEEE/ACM Transactions on Computational Biology and Bioinformatics}, 16(5):1586--1597, 2019. doi:10.1109/TCBB.2018.2885274.
+
+\bibitem{kong2020}
+L. Kong and K. Mamouras.
+\newblock StreamQL: A query language for processing streaming time series.
+\newblock \emph{Proceedings of the ACM on Programming Languages}, 4(OOPSLA), Article 183, 2020. doi:10.1145/3428251.
+
+\bibitem{siddiqui2020}
+T. Siddiqui, P. Luh, Z. Wang, K. Karahalios, and A. Parameswaran.
+\newblock ShapeSearch: A Flexible and Efficient System for Shape-based Exploration of Trendlines.
+\newblock In \emph{Proceedings of the 2020 ACM SIGMOD International Conference on Management of Data}, pages 51--65, 2020. doi:10.1145/3318464.3389722.
+
+\bibitem{yu2023}
+Y. Yu, T. Becker, L. M. Trinh, and M. Behrisch.
+\newblock SAXRegEx: Multivariate time series pattern search with symbolic representation, regular expression, and query expansion.
+\newblock \emph{Computers \& Graphics}, 112:13--21, 2023. doi:10.1016/j.cag.2023.03.002.
+
+\bibitem{nickovic2021}
+D. Ni\v{c}kovi\'c, X. Qin, T. Ferr\`ere, C. Mateis, and J. Deshmukh.
+\newblock Specifying and detecting temporal patterns with shape expressions.
+\newblock \emph{International Journal on Software Tools for Technology Transfer}, 23:565--577, 2021. doi:10.1007/s10009-021-00627-x.
+
+\bibitem{petkovic2022}
+D. Petkovi\'c.
+\newblock Specification of row pattern recognition in the SQL standard and its implementations.
+\newblock \emph{Datenbank-Spektrum}, 22:163--174, 2022.
+
+\bibitem{zhu2023}
+E. Zhu, S. Huang, and S. Chaudhuri.
+\newblock High-performance row pattern recognition using joins.
+\newblock \emph{Proceedings of the VLDB Endowment}, 16(5):1181--1194, 2023. doi:10.14778/3579075.3579090.
+
+\bibitem{huang2023}
+S. Huang, E. Zhu, S. Chaudhuri, and L. Spiegelberg.
+\newblock T-ReX: Optimizing pattern search on time series.
+\newblock In \emph{Proceedings of ACM SIGMOD}, 2023. doi:10.1145/3589275.
+

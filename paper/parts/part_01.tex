@@ -1,0 +1,196 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[a4paper,margin=2.05cm]{geometry}
+\usepackage{fontspec}
+\setmainfont{DejaVu Serif}
+\setsansfont{Inter}
+\setmonofont{DejaVu Sans Mono}
+\usepackage[english]{babel}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools,amsthm}
+\usepackage{stmaryrd}
+\usepackage{booktabs,tabularx,array,longtable,multirow}
+\usepackage{graphicx}
+\graphicspath{{../}}
+\usepackage{caption,subcaption}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{float}
+\usepackage{siunitx}
+\usepackage{csquotes}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,shapes.geometric}
+
+\definecolor{MainBlue}{HTML}{1F4E79}
+\definecolor{LightBlue}{HTML}{EAF2F8}
+\definecolor{DarkGray}{HTML}{39434D}
+\definecolor{SoftGray}{HTML}{F4F5F7}
+\definecolor{CodeGreen}{HTML}{2E6B4E}
+\definecolor{CodeOrange}{HTML}{A95516}
+\definecolor{Warn}{HTML}{8A4B08}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=MainBlue,
+  citecolor=MainBlue,
+  urlcolor=MainBlue,
+  pdftitle={MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations},
+  pdfauthor={Redha Moulla}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{MorphoQL Core 0.2}
+\rhead{Preprint -- August 2026}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+\setlength{\headheight}{14pt}
+
+\titleformat{\section}{\Large\bfseries\color{MainBlue}}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\large\bfseries\color{MainBlue}}{\thesubsection}{0.7em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{DarkGray}}{\thesubsubsection}{0.7em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\setlength{\cftsubsecnumwidth}{3.8em}
+\setlength{\cftsubsubsecnumwidth}{4.8em}
+
+\setlength{\parindent}{0.5cm}
+\setlength{\parskip}{0.12em}
+\setlist[itemize]{leftmargin=1.55em,itemsep=0.22em,topsep=0.35em}
+\setlist[enumerate]{leftmargin=1.75em,itemsep=0.22em,topsep=0.35em}
+\renewcommand{\arraystretch}{1.15}
+\emergencystretch=3em
+\sisetup{output-decimal-marker={.},round-mode=places,round-precision=3}
+
+\lstdefinelanguage{MorphoQL}{
+  morekeywords={SELECT,FROM,MATCH,EDGE,UP,DOWN,AS,THEN,WITHIN,WHERE,MIN_STRENGTH,ORDER,BY,SCORE,DESC,LIMIT,MATCH_START,MATCH_END},
+  sensitive=false,
+  morecomment=[l]{--},
+  morestring=[b]'
+}
+\lstset{
+  language=MorphoQL,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries\color{MainBlue},
+  commentstyle=\itshape\color{CodeGreen},
+  stringstyle=\color{CodeOrange},
+  backgroundcolor=\color{SoftGray},
+  frame=single,
+  rulecolor=\color{gray!40},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=true,
+  aboveskip=0.7em,
+  belowskip=0.7em
+}
+
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\newtheorem{assumption}{Assumption}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Events}{\mathcal{E}}
+\newcommand{\Matches}{\mathcal{M}}
+\newcommand{\Den}[1]{\llbracket #1\rrbracket}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\DoG}{\operatorname{DoG}}
+\newcommand{\MAD}{\operatorname{MAD}}
+\newcommand{\matchstart}{\operatorname{start}}
+\newcommand{\matchend}{\operatorname{end}}
+\newcommand{\gap}{\operatorname{gap}}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{0.9cm}
+{\sffamily\bfseries\color{MainBlue}\fontsize{23}{28}\selectfont
+MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations\par}
+\vspace{0.35cm}
+{\sffamily\Large An EDGE-THEN-WITHIN Core, Auditable Event Relations, and Recomputable Execution Witnesses\par}
+\vspace{1.1cm}
+{\large Redha Moulla\par}
+\vspace{0.15cm}
+{\normalsize AXIA, France\par}
+\vspace{0.25cm}
+{\normalsize August 2026\par}
+\vfill
+\end{titlepage}
+
+\begin{abstract}
+Morphological queries over time series require an explicit representation of signal changes and a verifiable execution semantics. We present \emph{MorphoQL Core 0.2}, a declarative kernel that compiles \code{EDGE--THEN--WITHIN} chains over a multi-series relation of signed events extracted from single- or multiscale representations, with provenance down to the numerical coefficients.
+
+Strict satisfaction is separated from scoring, ordering, deduplication, projection, and \code{LIMIT}. Each visible occurrence is associated with a deterministic-JSON execution witness that binds the occurrence, its rank, the materialized \code{SELECT} row, the ordered columns, and the fingerprint of the complete projected output. Verification recompiles the query, recomputes strict matches through the declared engine, replays postprocessing and projection, and compares the manifests and the row at the claimed rank. The nested AST schema and the programmatic API enforce the same strict types without silent coercion from booleans, strings, or floating-point values to integers.
+
+Validation comprises 1,200 unique positive queries, 1,200 invalid mutations, 800 differential cases across three execution strategies with no mismatch, and 85 boundary or adversarial tests. On 600 synthetic retail-like series, maximum lines achieve a localized macro F1 of $0.604$, versus $0.462$ for first differences, $0.587$ for a single-scale derivative-of-Gaussian pipeline, and $0.573$ for aggregated multiscale maxima. Their overall advantage over the single-scale branch is not established at the 95\% level. An observational study on five product--store series is reported as retrospective feasibility rather than causal or operational validation.
+\end{abstract}
+
+\noindent\textbf{Keywords:} time series, query language, wavelets, modulus maxima, maximum lines, SQL, temporal joins, provenance.
+
+\tableofcontents
+\clearpage
+
+\section{Introduction}
+
+Time-series systems can filter dates, aggregate values, compute windows, and retrieve a subsequence similar to an example. They respond less directly to a compositional request such as:
+\begin{quote}
+``Find an upward transition followed by a downward transition eight to fourteen days later, and then a rebound within the following ten days.''
+\end{quote}
+The request does not specify the exact values of the segment. It specifies an event alphabet, an order, and temporal distances. It is therefore closer to a declarative program than to a numerical template.
+
+This general idea has important precedents. The shape-definition language introduced in \emph{Querying Shapes of Histories} represented profiles as symbols such as \emph{up}, \emph{down}, and \emph{stable}, composed through concatenation, choice, and repetition \cite{agrawal1995}. TimeSearcher, SSTS, shape expressions, temporal logics, and row-pattern engines subsequently proposed other interfaces for querying shapes \cite{hochheiser2004,rodrigues2019,nickovic2021,maler2004,donze2010,huang2023}. MorphoQL therefore claims neither the invention of a shape grammar nor that of sequential operators.
+
+The target problem is narrower: \emph{how can morphological events be materialized, queried, and audited when signal changes must be observed across multiple scales?} The proposed representation is a relation derived from signed maxima and maximum lines in a time--scale plane. A transition becomes a relational event with a timestamp, sign, strength, persistence, scale span, and provenance pointing to the coefficients that produced it. The language then operates on these objects without conflating their geometry with a business cause.
+
+The processing chain is
+\begin{equation}
+ X \xrightarrow{\Phi_{\theta}} \Events_X
+ \xrightarrow{\mathrm{parse}} q
+ \xrightarrow{\mathrm{compile}} P_q
+ \xrightarrow{\mathrm{execute}} \Matches(q,\Events_X)
+ \xrightarrow{\mathrm{witness}} \mathcal{W}.
+\end{equation}
+It separates four problems:
+\begin{enumerate}
+  \item the \textbf{fidelity of the extractor} $\Phi_{\theta}$ with respect to the raw signal;
+  \item the \textbf{correctness of the compiler} relative to a given event relation;
+  \item \textbf{provenance}, which connects events to extraction nodes and matches to query constraints;
+  \item \textbf{business or causal interpretation}, which requires variables and assumptions external to the signal.
+\end{enumerate}
+
+This work addresses four research questions:
+\begin{description}[style=nextline,leftmargin=1.3cm]
+  \item[RQ1] Does the \code{EDGE--THEN--WITHIN} core have an operational syntax and semantics for which three execution strategies return the same strict matches on a multi-series relation?
+  \item[RQ2] Can a witness connecting a match to the normalized query, configurations, events, manifests, and originating coefficients be materialized and verified by recomputation?
+  \item[RQ3] How do first differences, a single-scale DoG, aggregated multiscale maxima, and maximum lines perform under identical queries when evaluated as complete pipelines?
+  \item[RQ4] How sensitive is the maximum-line pipeline to selected linking choices, and what can be inferred from its application to non-injected sales series?
+\end{description}
+
+The contributions are:
+\begin{itemize}
+  \item a multi-series event relation produced by four extractors, in which every identifier, whether generated or supplied explicitly, must equal the content address of the complete event;
+  \item a normative \emph{MorphoQL Core 0.2}, restricted to chains of \code{EDGE}, \code{THEN}, and \code{WITHIN}, with projection, source, threshold, ordering, and limit executed operationally;
+  \item a strict semantics for signs, gaps, series partitions, and thresholds, compiled to exhaustive enumeration, temporal joins, and SQLite SQL;
+  \item a serializable \code{ExecutionWitness} and a \code{verify\_witness} procedure that recompute internal invariants and, when the required inputs are supplied, the strict relation, visible output, and projected-row fingerprints;
+  \item a factorial campaign of positive, negative, differential, multi-series, boundary, and adversarial validation;
+  \item an evaluation explicitly framed as a comparison of four complete extraction pipelines, supplemented by a targeted ablation and event-cardinality measurements;
+  \item an exploratory observational study on five real series, without causal claims or an estimate of external morphological accuracy.
+\end{itemize}
+
+\section{Related Work and Positioning}
+
+\subsection{Historical Shape Languages and Query Interfaces}
+
+Agrawal et al. proposed a shape-definition language for histories in 1995, with a transition alphabet, regular operators, fuzzy matching, rewriting rules, and indexes \cite{agrawal1995}. This work is a direct precedent: MorphoQL does not introduce the first compositional syntax for shapes. Its distinguishing feature is the materialization of atoms from multiscale wavelet geometry and the exposure of that geometry through an audited relation.
+
+TimeSearcher supports interactive queries through time boxes, value constraints, and angular constraints on derivatives \cite{hochheiser2004}. SSTS transforms signals into symbolic connotations and then applies regular expressions \cite{rodrigues2019}. ShapeSearch provides a flexible algebra for trendline exploration, input through sketches, natural language, and visual expressions, together with an execution engine and a perceptual score \cite{siddiqui2020}. TSseek approximates series by linear segments and translates regular expressions over trends and value ranges into distributed spatial queries \cite{litsseek2026}. These approaches show that symbolic expressiveness and indexing can be separated; MorphoQL investigates a different representation based on cross-scale persistence and numerical provenance down to maxima.
+
+\subsection{Temporal Logics, Streams, and Row Patterns}
+

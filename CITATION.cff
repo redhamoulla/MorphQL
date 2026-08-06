@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use MorphoQL, please cite the paper and this software."
+title: "MorphoQL Core 0.2"
+type: software
+authors:
+  - family-names: Moulla
+    given-names: Redha
+version: 0.8.0
+date-released: 2026-08-06
+repository-code: "https://github.com/redhamoulla/MorphQL"
+license: LicenseRef-Proprietary-Research
+preferred-citation:
+  type: article
+  title: "MorphoQL: Declarative Morphological Queries over Multiscale Wavelet Event Relations"
+  authors:
+    - family-names: Moulla
+      given-names: Redha
+  year: 2026

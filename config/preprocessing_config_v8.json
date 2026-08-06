@@ -1,0 +1,16 @@
+{
+  "baseline_edge_fill": "backfill_then_forward_fill",
+  "baseline_min_periods": 15,
+  "baseline_operator": "centered_rolling_median",
+  "baseline_window_days": 63,
+  "causal": false,
+  "config_kind": "preprocessing",
+  "epsilon": 1e-06,
+  "mad_consistency_factor": 1.4826,
+  "normalization": "residual_divided_by_robust_scale",
+  "robust_scale": "1.4826 * MAD + epsilon",
+  "sampling_unit": "day",
+  "schema_version": "morphoql.configuration/0.8",
+  "weekly_profile": "median_by_weekday_minus_global_median",
+  "weekly_profile_scope": "whole_series_retrospective"
+}

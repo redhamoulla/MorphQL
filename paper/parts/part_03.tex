@@ -1,0 +1,192 @@
+The engine can establish the first claim relative to the relation. It does not prove the second for a general class of noisy signals. The witness therefore explains \emph{why the algorithm accepted the tuple}, without assigning causal or ontological force to that acceptance. Its verifier detects inconsistencies through recomputation but is neither a digital signature, a proof of prior existence, nor an attestation of the witness producer's identity.
+
+\subsection{Morphology, Business Semantics, and Causality}
+
+A $+\rightarrow-$ chain describes two opposite transitions. It denotes neither a promotion, nor a stockout, nor a product launch. The following separation is enforced:
+\begin{equation}
+\text{observable morphology}\;\neq\;\text{business label}\;\neq\;\text{causal effect}.
+\end{equation}
+Price, calendar, or campaign metadata may be joined after retrieval, but they do not alter satisfaction of the core language.
+
+\section{Extraction Pipelines and Registered Configuration}
+
+This section describes the four pipelines used in the benchmark. They share preprocessing, the query engine, and the evaluation protocol, but have pipeline-specific extraction hyperparameters. The results therefore compare \emph{complete pipelines}; they do not causally isolate the effect of cross-scale linking. Every constant that changes the event relation is defined once in \path{src/configuration.py}. The script writes strict deterministic-JSON files to \path{config/}, and the same objects are consumed by extraction, relation validation, witness generation, and the experimental protocol.
+
+\subsection{Retrospective Retail Preprocessing}
+
+For each daily series $x[0],\ldots,x[T-1]$, the weekly profile is estimated over the complete series. Let $d(t)\in\{0,\ldots,6\}$ be the day of the week and $m=\operatorname{median}_t x[t]$. We define
+\begin{equation}
+ w_j=\operatorname{median}\{x[t]:d(t)=j\}-m,
+ \qquad
+ x^{\mathrm{des}}[t]=x[t]-w_{d(t)}.
+\end{equation}
+The slow component is a centered 63-day rolling median requiring at least 15 observations, extended at the boundaries by the nearest available value:
+\begin{equation}
+ b[t]=\operatorname{Med}_{u\in[t-31,t+31]}x^{\mathrm{des}}[u].
+\end{equation}
+The residual and its robust standardization are
+\begin{equation}
+ r[t]=x^{\mathrm{des}}[t]-b[t],
+ \qquad
+ z[t]=\frac{r[t]}{1.4826\,\MAD(r)+10^{-6}}.
+\end{equation}
+This preprocessing is retrospective: the weekly profile uses the complete series and the centered median uses future observations. It must not be interpreted as an online alerting mechanism.
+
+\subsection{Derivative-of-Gaussian Coefficients}
+
+The scale grid is
+\begin{equation}
+ \mathcal{A}=\{1,2,3,4,5,7,10,14\}\ \text{days}.
+\end{equation}
+For each $a\in\mathcal{A}$,
+\begin{equation}
+ D_a[t]=a\,\frac{\partial}{\partial t}(G_a*z)[t],
+ \qquad
+ \widetilde D_a[t]=\frac{D_a[t]}{1.4826\,\MAD(D_a)+10^{-6}}.
+\end{equation}
+The implementation uses \code{scipy.ndimage.gaussian\_filter1d}, \code{order=1}, \code{nearest} padding, and independent MAD normalization at each scale. The single-scale branch uses $\sigma=1.5$ days and a minimum peak distance of two days; this exception is encoded explicitly in the registered configuration.
+
+\subsection{Signed Maxima, Aggregation, and Linking}
+
+At scale $a$, a positive node is a maximum of $\widetilde D_a$ and a negative node is a maximum of $-\widetilde D_a$. For the multiscale branches, the minimum distance is
+\begin{equation}
+ \delta_a=\max\left(1,\left\lfloor\frac{a}{2}\right\rfloor\right).
+\end{equation}
+The unlinked aggregation sums node strengths by time and sign, smooths the score with a Gaussian of $\sigma=1.2$ days, extracts events with a minimum distance of two days, and assigns as provenance all same-sign nodes lying within $\pm1$ day of the final peak.
+
+For maximum lines, nodes are processed separately by sign and increasing scale. An active line may skip at most two scale indices. A node $n'$ extends a line whose last time is $t_\ell$ when
+\begin{equation}
+ |t(n')-t_\ell|\leq\eta(a),
+ \qquad
+ \eta(a)=\max(2,0.65a+1),
+\end{equation}
+and candidate links are ordered by
+\begin{equation}
+ c(\ell,n')=\frac{|t(n')-t_\ell|}{\eta(a)+10^{-6}}-0.03\,s(n').
+\end{equation}
+Numerical ties are broken deterministically by cost, active-line index, and node index. Matching is greedy: it is a reproducible heuristic, not an optimal WTMM tracker.
+
+A line is retained if it covers at least two distinct scales. Its representative time is the strength-weighted average of node times for scales up to three days; otherwise the smallest-scale node is used. Persistence and strength are
+\begin{equation}
+ \rho(L)=\frac{|\{a_i\}|}{|\mathcal{A}|},
+\end{equation}
+\begin{equation}
+ \alpha(L)=\operatorname{median}_i(s_i)\bigl(1+1.7\rho(L)\bigr)
+ +0.15\max_i s_i-0.03\operatorname{std}_i(t_i).
+\end{equation}
+Same-sign lines separated by at most two days are merged. The representative time is taken from the strongest line; the merged strength is its strength plus $0.1$ times the sum of secondary strengths; provenance is the ordered duplicate-free union of supporting nodes. For single-scale branches, persistence is conventionally set to 1. It then means ``presence on the only configured level,'' not persistence comparable with a multiscale grid.
+
+\begin{table}[H]
+\centering
+\caption{Registered configurations of the four pipelines.}
+\label{tab:extractor-config}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}p{2.65cm}p{2.2cm}p{2.7cm}X@{}}
+\toprule
+Pipeline & Scales / distance & Thresholds & Construction and additional constants \\
+\midrule
+First difference & level 0; distance 1 d & node 1.00 & extrema of $\Delta z[t]$; singleton provenance; conventional persistence 1 \\
+Single-scale DoG & $\sigma=1.5$ d; distance 2 d & node 1.00 & normalized Gaussian derivative; singleton provenance; conventional persistence 1 \\
+Multiscale maxima & $\mathcal{A}$; $\delta_a$ & node 0.80; event 0.60 & temporal sum, smoothing $\sigma=1.2$ d, event distance 2 d, provenance support $\pm1$ d \\
+Maximum lines & $\mathcal{A}$; $\delta_a$ & node 0.65; event 0.30; min. 2 scales & max. skip 2, tolerance $\max(2,0.65a+1)$, bonus 0.03, merge 2 d, secondary weight 0.1 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Traceability of parameters that determine the relation and visible output.}
+\label{tab:parameter-traceability}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}p{3.0cm}p{3.0cm}p{2.7cm}X@{}}
+\toprule
+Family & Source / status & Main values & Role \\
+\midrule
+Preprocessing & \path{src/configuration.py}; \path{config/preprocessing_config_v7.json} & 63 d window, min. 15, MAD 1.4826, $\epsilon=10^{-6}$ & standardized residual series \\
+Single-scale DoG & \path{config/extractor_configs_v7.json} & $\sigma=1.5$, threshold 1, distance 2 & single-scale events \\
+WTMM aggregation & same file & grid $\mathcal{A}$, 0.80/0.60, smoothing 1.2, support $\pm1$ & unlinked multiscale maxima \\
+WTMM lines & same file & 0.65/0.30, min. 2, skip 2, merge 2, weights 1.7/0.15/0.03/0.1 & linking, summarization, and merging \\
+Postprocessing & \path{config/postprocessing_config_v7.json} & deduplication 2 d, first-result policy, limit after deduplication & visible output and witness \\
+Benchmark & \path{config/benchmark_protocol_defaults_v7.json} & 600/180, 100 quantiles, all candidates, tolerance 3 d, 2,000 bootstrap replicates & calibration and evaluation \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Materialized Relational Schema}
+
+\begin{table}[H]
+\centering
+\caption{Schema and invariants of the multi-series event relation.}
+\label{tab:event-schema}
+\small
+\begin{tabularx}{\textwidth}{@{}p{3.0cm}p{2.2cm}X@{}}
+\toprule
+Attribute & Type & Semantics and invariant \\
+\midrule
+\code{series\_id} & nonempty identifier & series partition; all joins in a match remain within it \\
+\code{event\_id} & nonempty identifier & unique key with \code{series\_id} \\
+\code{time} & finite real / date & totally orderable representative time \\
+\code{sign} & $\{-1,+1\}$ & downward or upward transition under the branch convention \\
+\code{strength} & finite real $\geq0$ & heuristic strength produced by the extractor \\
+\code{persistence} & finite real $[0,1]$ & proportion of scales, or convention 1 for a singleton grid \\
+\code{scale\_min/max} & finite reals $\geq0$ & exact provenance span, with $a_{\min}\leq a_{\max}$ \\
+\code{extractor\_name} & nonempty string & homogeneous within a Core 0.2 \code{EventRelation} \\
+\code{provenance} & nonempty list & nodes $(a,t,c,b,k)$ consistent in sign and bounds \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+On the representative validation series, all four branches produce a nonempty identifier and provenance for every event. The validation also checks numerical domains, key uniqueness, extractor homogeneity, and configuration consistency.
+
+\section{MorphoQL Core 0.2}
+
+\subsection{Normative Scope}
+
+Core 0.2 expresses a chain of two or more events, each upward or downward, with a closed temporal window between every consecutive pair. Projection, source relation, a strength threshold, ordering, and limit are part of the operational interface. The \code{RISE}, \code{FALL}, \code{HOLD}, and \code{OSCILLATE} primitives, negation, and repetition remain non-normative.
+
+\begin{lstlisting}
+SELECT SERIES_ID, MATCH_START, MATCH_END, SCORE
+FROM sales
+MATCH (
+    EDGE UP AS u
+    THEN EDGE DOWN AS d WITHIN 8d..14d
+    THEN EDGE UP AS r WITHIN 5d..10d
+)
+WHERE MIN_STRENGTH >= 0.5
+ORDER BY SCORE DESC
+LIMIT 20;
+\end{lstlisting}
+
+\subsection{Normative Grammar}
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize]
+query       ::= SELECT projection FROM identifier
+                MATCH "(" chain ")"
+                where_clause? order_clause? limit_clause? ";"?
+projection  ::= "*" | field ("," field)*
+field       ::= MATCH_START | MATCH_END | SCORE | identifier
+chain       ::= edge (THEN edge WITHIN interval)+
+edge        ::= EDGE (UP | DOWN) (AS identifier)?
+interval    ::= duration ".." duration
+duration    ::= number unit
+where_clause ::= WHERE MIN_STRENGTH ">=" signed_number
+order_clause ::= ORDER BY SCORE DESC
+limit_clause ::= LIMIT positive_integer
+unit        ::= ms | s | min | h | d | w |
+                day | days | j | jour | jours
+\end{lstlisting}
+
+The lexer places long units before their short prefixes and enforces a lexical boundary. All eleven declared units have at least one positive test and are converted to days. Keywords are case-insensitive, but unquoted source names and aliases are case-sensitive: \code{AS U} must be projected by \code{SELECT U}, not \code{SELECT u}. Aliases within a pattern must be unique, and intervals satisfy $0\leq l\leq u$.
+
+Normalized durations use the shortest decimal representation that reconstructs the internal floating-point value exactly (\code{repr(float)}), rather than truncation to twelve significant digits. This choice closes the round trip for \code{ms}, \code{s}, \code{min}, \code{h}, and day or week units. For each of the eleven units, a factorial validation executes the chain \code{parse -> execute -> make\_witness -> to\_json -> from\_json -> verify\_witness}; a duration requiring more than twelve significant digits is included as a regression test. Exact rational representation would be a possible extension but is not required by the numerical contract of Core 0.2.
+
+\subsection{Strict Multi-Series Semantics}
+
+Let $A_i$ be the set of events with sign $\sigma_i$ and strength at least $\theta$. For an interval $I=[l,u]$, define the bounded join
+\begin{equation}
+J_I(P,A)=\{(p,e):p\in P,\ e\in A,\ s(e)=s(p),\ e.t>\operatorname{end}(p),\ e.t-\operatorname{end}(p)\in I\},
+\end{equation}
+where $s(\cdot)$ denotes the series and $\operatorname{end}(p)$ the time of the last event in the prefix. For a query with $k$ atoms,
+\begin{equation}
+\Den{q}_{\Events}=J_{I_{k-1}}\bigl(\cdots J_{I_2}(J_{I_1}(A_1,A_2),A_3)\cdots,A_k\bigr).
+\end{equation}

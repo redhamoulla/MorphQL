@@ -1,0 +1,153 @@
+This denotation permits overlaps between matches and reuse of an event across different matches, but never reuse within a tuple in non-strict order or across different series. Even when an interval has a lower bound of zero, the constraint $e.t>\operatorname{end}(p)$ remains in force; consecutive atoms therefore cannot be satisfied at the same instant.
+
+\subsection{Score, Ordering, Deduplication, and Limit}
+
+Strict satisfaction depends only on signs, order, gaps, threshold, and series partition. The score is a heuristic postprocessing function:
+\begin{equation}
+ S_{\mathrm{force}}=\min_i\log(1+\alpha_i)
+ +0.35\,\frac{1}{k}\sum_i\log(1+\alpha_i),
+\end{equation}
+from which a penalty of $0.08$ is subtracted according to the normalized distance from the center of each window. The coefficients $0.35$ and $0.08$ are prototype choices, not theoretical constants.
+
+Without \code{ORDER BY}, matches are returned under the total order
+\begin{equation*}
+ (\code{series\_id},t_1,\ldots,t_k,-S,\mathrm{id}_1,\ldots,\mathrm{id}_k).
+\end{equation*}
+With \code{ORDER BY SCORE DESC}, they are sorted by
+\begin{equation*}
+ (-S,\code{series\_id},t_1,\ldots,t_k,\mathrm{id}_1,\ldots,\mathrm{id}_k).
+\end{equation*}
+Content-addressed identifiers provide the final tie-breaker when times and scores are equal; the compiled SQL includes the same columns in \code{ORDER BY}. Deterministic deduplication is applied after sorting; its tolerance is either absent or finite and nonnegative. \code{LIMIT}, when present, is applied last. The strict plan covered by the equivalence proposition excludes these operations.
+
+\subsection{Projection and Source}
+
+The query source must match the name of the \code{EventRelation} supplied to the engine; a mismatch raises an error. \code{SELECT *} returns the series identifier, boundaries, score, event identifiers, times, and gaps. The \code{MATCH\_START}, \code{MATCH\_END}, \code{SCORE}, \code{SERIES\_ID}, and alias fields are materialized; an alias projects the time of the corresponding event.
+
+The programmatic API enforces the same domains as the text parser. A sign is the non-Boolean integer $-1$ or $+1$; gap bounds, thresholds, and tolerances are finite, non-Boolean \code{int|float} values. Numeric strings and booleans are never converted silently. This rule prevents a directly constructed program from having semantics different from its textual form.
+
+\subsection{Non-Normative Extensions}
+
+Interval forms such as \code{HOLD FOR d}, persistent \code{RISE}/\code{FALL} trends, analytic oscillations, Boolean operators, negation, repetition, and translation from natural language are future extensions. They are neither accepted by the Core 0.2 parser nor included in the experimental results.
+
+\section{Compilation and Execution}
+
+\subsection{Three Strategies for Strict Satisfaction}
+
+The LALR parser produces an AST containing the source, projection, sequence of signs, intervals, aliases, threshold, ordering choice, and limit. Three strategies execute the same strict semantics:
+\begin{enumerate}
+  \item reference enumeration of all increasing $k$-tuples of indices;
+  \item iterative prefix extension through temporal joins;
+  \item a self-join SQL plan executed by SQLite in differential validation.
+\end{enumerate}
+
+For three atoms, the strict plan is conceptually:
+\begin{lstlisting}
+SELECT e1.series_id, e1.event_id, e2.event_id, e3.event_id
+FROM events e1
+JOIN events e2
+  ON e2.series_id = e1.series_id
+ AND e2.time > e1.time
+ AND e2.time - e1.time BETWEEN l1 AND u1
+JOIN events e3
+  ON e3.series_id = e1.series_id
+ AND e3.time > e2.time
+ AND e3.time - e2.time BETWEEN l2 AND u2
+WHERE e1.sign = s1 AND e2.sign = s2 AND e3.sign = s3
+  AND e1.strength >= theta
+  AND e2.strength >= theta
+  AND e3.strength >= theta;
+\end{lstlisting}
+Ranking, deduplication, user projection, and \code{LIMIT} are deliberately applied after this strict plan.
+
+\subsection{Equivalence Relative to the Relation}
+
+\begin{assumption}[Strict-relation contract]
+The relation is finite and satisfies the contract of Section 3: every \code{event\_id} equals the content address of the complete event; $(\code{series\_id},\code{event\_id})$ keys are unique and nonempty; times, strengths, and scale spans are finite; strengths are nonnegative; persistence lies in $[0,1]$; provenance is nonempty; configurations are valid; and the relation is partitioned by series. Gaps and the threshold are finite. The three engines use the same closed bounds, apply the threshold to every atom, and do not include scoring, visible ordering, deduplication, projection, or limit in the strict set being compared.
+\end{assumption}
+
+\begin{proposition}[Equivalence of the strict core]
+Under the preceding assumption, exhaustive enumeration, temporal-join composition, and self-join SQL return the same set of tuples for every Core 0.2 query and every validated event relation.
+\end{proposition}
+
+\begin{proof}
+The enumerator considers all strictly increasing $k$-tuples from a common series and retains exactly those whose signs, strengths, and gaps satisfy the query. The join plan initializes $A_1$, the set of satisfying prefixes of length one. Assume that after $i-1$ joins, the obtained prefixes are exactly the satisfying prefixes of length $i$. Operator $J_{I_i}$ appends all and only later events from the same series, with the required sign and strength, whose gap lies in $I_i$. The resulting prefixes are therefore exactly the satisfying prefixes of length $i+1$. Induction up to $k$ establishes equality. The SQL plan materializes the same predicates in its self-join clauses, and the composite key identifies selected events unambiguously.
+\end{proof}
+
+The proposition is mathematical relative to the stated predicates. Software validation uses common floating-point arithmetic, and the three strategies share the parser, AST, data classes, and several helper functions; they are not three independent reimplementations over the real numbers.
+
+The proposition concerns strict satisfaction. It does not cover extractor fidelity, heuristic scoring, ordering, deduplication, projection, limit, or witnesses. These stages are deterministic and tested separately.
+
+\subsection{Timed-Automaton View and Complexity}
+
+A chain of $k$ atoms can also be represented by an automaton with $k+1$ states. Transition $i\to i+1$ consumes an event with the expected sign; for $i\geq1$, a clock reset at the previous event must lie within $I_i$. This view supports a possible streaming execution, provided the extractor is causal and partial states expire.
+
+Exhaustive enumeration is combinatorial in $|\Events|^k$. The ordered plan remains sensitive to the number of prefixes and therefore to selectivity of signs and gaps; its output cost is at least linear in the number of produced matches. A database implementation could exploit an index on $(\code{series\_id},\code{sign},\code{time})$, window joins, and cardinality statistics.
+
+\subsection{Execution Witness for the Complete Visible Output}
+
+For every visible occurrence, \code{execute\_query} produces a projected row and an \code{ExecutionWitness}. Two manifest levels are bound explicitly: the ordered set of visible occurrences and the ordered set of rows materialized by \code{SELECT}. The following excerpt summarizes the central generated fields:
+\begin{lstlisting}[language={},basicstyle=\ttfamily\scriptsize]
+{
+  "schema_version": "morphoql.execution-witness/0.8",
+  "implementation_version": "0.8.0",
+  "implementation_revision": "supplement-v8",
+  "engine_name": "relational",
+  "strict_plan": "iterative_temporal_join",
+  "normalized_query": "SELECT SERIES_ID, u, d, SCORE ...",
+  "query_ast": {"source": "sales", "atoms": [...], ...},
+  "event_ids": ["...up...", "...down..."],
+  "visible_output_manifest_fingerprint": "<sha256>",
+  "projected_output_manifest_fingerprint": "<sha256>",
+  "projected_row": {
+    "columns": ["SERIES_ID", "u", "d", "SCORE"],
+    "values": ["A", 10.0, 12.0, 2.392208616791207]
+  },
+  "output_rank": 1,
+  "events": [...]
+}
+\end{lstlisting}
+
+The projected row is serialized as two ordered arrays, \code{columns} and \code{values}; column order is therefore part of the contract. The \code{projected\_output\_manifest\_fingerprint} covers all visible projected rows in their final order. The postprocessing configuration also records the deduplication tolerance, selection policy, total order, limit, and declared projection.
+
+\code{ExecutionWitness.from\_json} validates the exact top-level schema, event schema, projected-row schema, and nested \code{query\_ast} schema. AST signs must be non-Boolean integers, and unknown keys are rejected. Complete verification reparses the query, compares ASTs through deterministic JSON, recomputes strict candidates, replays ordering, deduplication, and \code{LIMIT}, calls the normative projector on every visible occurrence, and then compares the global projected manifest and the row at the claimed rank. Modifying the projector, a projected value, or column order invalidates the witness.
+
+This procedure establishes consistency by recomputation relative to the supplied relation, code, and configurations. It is neither a cryptographic signature, a proof of prior existence, nor a guarantee that the event relation is an exhaustive representation of the signal. An interoperable implementation outside Python would require an independently versioned JSON canonicalization specification.
+
+\section{Language and Compiler Validation}
+
+\subsection{Factorial Validation Campaign}
+
+Validation is independent of the detection benchmark. The 1,200 positive queries are unique after normalization and cross eleven units, three sources, two to four atoms, four threshold states, ordering present or absent, four limits, aliases absent, complete, or mixed, and four projection families. Projected values and column order are checked. Each negative belongs to one of nine mutation families derived from a positive query; all 1,200 mutations are rejected.
+
+\begin{table}[H]
+\centering
+\caption{Coverage of the Core 0.2 validation for implementation 0.8.0.}
+\label{tab:compiler-coverage}
+\small
+\begin{tabularx}{\textwidth}{@{}p{3.3cm}Xr@{}}
+\toprule
+Dimension & Levels & Count \\
+\midrule
+Units & ms, s, min, h, d, w, day(s), j, jour(s) & 11 \\
+Projections & star, boundaries, series, declared aliases & 4 \\
+Sources & three relation names & 3 \\
+Pattern aliases & none, complete, mixed & 3 \\
+Threshold, order, limit & 4 $\times$ 2 $\times$ 4 states & -- \\
+Positive queries & two to four atoms, unique after normalization & 1,200 \\
+Negative mutations & nine derived families & 1,200 \\
+Differential cases & strict-pattern dimensions & 800 \\
+Adversarial tests & relation, AST, API, projection, witness & 85 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The 85 boundary or adversarial tests cover, among other cases, the ordered projected row, its values, and its global manifest; rejection of a forged row or manifest; rejection of a modified projector; rejection of a JSON sign \code{1.0} and an unknown AST key; rejection of \code{Atom(True)}, \code{Atom(1.0)}, string or Boolean gap bounds, and thresholds or tolerances supplied under a convertible but incorrect type. All tests pass.
+
+\subsection{Three-Engine Differential Validation}
+
+Eight hundred random cases combine one to three series and zero to nine events per series. The campaign targets the strict set and compares the identifiers returned by the reference enumerator, Python temporal joins, and SQLite self-joins. No mismatch is observed. Projection, ordering, deduplication, and limit are tested separately because they belong to visible postprocessing rather than to the strict-equivalence proposition.
+
+The three engines share the parser, AST, and relation contract. The experiment is therefore a differential validation of execution strategies, not three independent implementations of the entire stack.
+
+\subsection{Provenance and Witness Validation}
+

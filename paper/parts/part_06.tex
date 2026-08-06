@@ -1,0 +1,130 @@
+Allowing a single scale increases F1 by $0.024$ relative to the default, with paired interval $[0.0003,0.048]$, but raises the relation from 50 to 89 events per series and abandons the strong notion of cross-scale persistence. Requiring three scales decreases F1 by $0.040$, interval $[-0.062,-0.018]$, and produces a sparser relation. Disabling merging is close to the default in this experiment ($\Delta=0.00025$, interval $[-0.0076,0.0076]$). These intervals are exploratory and unadjusted for the fifteen multiple comparisons among six variants. They establish neither optimality nor general superiority; the robust result is the trade-off among recall, relational cardinality, and auditability. The ablation is partial: it does not cover preprocessing, multiple scale grids, or a complete nested hyperparameter selection.
+
+\subsection{Replication on Additional Seeds}
+
+With code, hyperparameters, split sizes, and calibration procedure fixed, an additional corpus of 120 series is generated from seeds $130000,\ldots,130119$. The thresholds are not reused from the main benchmark: they are recalibrated under the fixed procedure on 40 new series and evaluated on 80 new series. This is a qualitative replication of the complete procedure under additional seeds, not an application of the original thresholds and not an independent preregistration. Its size does not justify a definitive ranking or new inferential claims.
+
+\begin{table}[H]
+\centering
+\caption{Replication on 80 additional evaluation series.}
+\label{tab:additional_seed}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Pipeline & Macro precision & Macro recall & Macro F1 \\
+\midrule
+First difference & .496 & .513 & .477 \\
+Single-scale DoG & .898 & .521 & .641 \\
+Multiscale maxima & .842 & .607 & \textbf{.691} \\
+Maximum lines & .811 & .621 & .679 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The point estimates of all three wavelet branches remain above first differences, but aggregated maxima exceed maximum lines on this split. This reversal confirms that the best representation depends on the corpus. Maximum lines provide explicit cross-scale persistence and coefficient-level provenance. Their event cardinality is comparable to that of the other wavelet pipelines and varies with the persistence criterion, so sparsity should be understood as a tunable trade-off rather than an unconditional advantage.
+
+\section{Exploratory Observational Study on Real Sales}
+
+\subsection{Data and Protocol}
+
+The pipeline is applied retrospectively to five daily product--store series from January 2, 2023, to June 7, 2026, corresponding to 1,253 days and 6,265 observations in total. Coverage ranges from 96.6\% to 98.9\%; missing dates are set to zero under the available historical protocol. Table~\ref{tab:real-series} describes the sample under systematic anonymization, while repeated products and sites are retained to preserve the sample structure.
+
+\begin{table}[H]
+\centering
+\caption{Series included in the observational study.}
+\label{tab:real-series}
+\small
+\begin{tabularx}{\textwidth}{@{}lXlrr@{}}
+\toprule
+ID & Product & Store & Coverage & Zeros \\
+\midrule
+S1 & Product A (250 g format) & Site 1 & 98.9\% & 1.1\% \\
+S2 & Product A (250 g format) & Site 2 & 98.4\% & 1.6\% \\
+S3 & Product B (250 g format) & Site 1 & 96.6\% & 3.4\% \\
+S4 & Product A (250 g format) & Site 3 & 96.6\% & 3.4\% \\
+S5 & Product B (250 g format) & Site 4 & 96.7\% & 3.3\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The same centered 63-day preprocessing is used; the analysis is therefore descriptive and non-causal. Three queries are executed: Q1 (1--4 days), Q2 (8--14 days), and Q3 (18--28 days), with fixed score thresholds 1.358377, 1.409728, and 1.403736, respectively. Prices and promotional markers, available only incompletely, are joined \emph{after} retrieval for exploratory description.
+
+\subsection{Descriptive Results}
+
+Forty-four matches are obtained and consolidated into 28 unique temporal episodes. Table~\ref{tab:real-results} reports the aggregate results. Detected lift is the ratio of sales within a retrieved window to a local reference level; control lift comes from matched control windows under the internal protocol. The distributed artifacts provide the input schema, a generic aggregation script, de-identified aggregates, and a processing manifest. Proprietary data and row-level annotations are not redistributed. The observational analysis is therefore only partially reproducible rather than fully replayable by a third party.
+
+\begin{table}[H]
+\centering
+\caption{Observational aggregates. ``Median promo'' is the median across series of the fraction of marked units within windows; it is not the fraction of episodes containing at least one marker.}
+\label{tab:real-results}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Query & Matches & Series & Detected lift & Control lift & Excess & Median promo \\
+\midrule
+Q1 (1--4 d) & 13 & 5 & 1.564 & .943 & +.737 & 0.0\% \\
+Q2 (8--14 d) & 19 & 5 & 1.402 & .997 & +.405 & 85.5\% \\
+Q3 (18--28 d) & 12 & 4 & 1.004 & .982 & +.037 & 6.7\% \\
+Unique episodes & 28 & 5 & 1.392 & .984 & +.383 & 0.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Among the three series with usable annotations, 18 episodes can be compared with the markers: 7 contain at least one marked unit and 11 contain none. This count is not inconsistent with the zero median for unique episodes because the denominators and aggregation procedures differ. The aggregate median price change is close to zero; the positive $+0.004$ point in the global row is a change in a ratio and does not demonstrate a price reduction.
+
+The windows are selected precisely because they contain salient sales shapes, so a high sales lift is partly tautological. The concentration of markers in Q2 is a descriptive signal compatible with some intermediate-duration episodes, but the sample size, incomplete labels, and dependence among observations preclude characterizing MorphoQL as a general promotion detector.
+
+\subsection{Stability and Drift}
+
+With thresholds fixed, the observed detection rate increases from approximately 1.05 to 1.71 episodes per series--year--query, a ratio of 1.63; Q2 reaches about 2.22. A second extraction branch corroborates approximately 50\% of episodes under the selected agreement window. These values indicate drift in score or event frequency, but corroboration is not independent because the methods share the signal and part of the preprocessing. A production system should monitor this drift and recalibrate using past-only windows.
+
+\subsection{Scope of the Study}
+
+The study establishes that the pipeline can operate without injected patterns and produce interpretable witnesses. It provides neither blindly annotated morphological ground truth, nor a sufficiently large sample, nor causal control. It therefore cannot estimate real query accuracy or attribute episodes to a commercial intervention.
+
+\section{Discussion}
+
+\subsection{What MorphoQL Contributes}
+
+The main contribution is an explicit interface among four layers:
+\begin{equation}
+\begin{aligned}
+ \text{signal and coefficients}
+ &\longrightarrow \text{multi-series event relation}\\
+ &\longrightarrow \text{morphological program}
+ \longrightarrow \text{execution witness}.
+\end{aligned}
+\end{equation}
+The language does not depend on the complete coefficient matrix; it depends on an event contract. The relation can be indexed, joined with metadata, and audited. The program can be validated independently of the extractor, while the witness reconnects a match to numerical nodes without conflating traceability with causal truth.
+
+\subsection{What the Validation Establishes and Does Not Establish}
+
+The 800 differential cases without mismatch support consistency among three execution strategies on the tested core. They prove neither the absence of every software defect, nor extractor fidelity, nor completeness of a broader language. Likewise, the microbenchmark characterizes a direct Python implementation on relations of up to 10,000 events; it does not establish database scalability or competitiveness with a CEP engine.
+
+\subsection{Why Maximum Lines Should Not Be the Only Branch}
+
+Maximum lines suppress unstable maxima and expose persistence. The benchmark confirms their usefulness under noise and for episodes lasting several weeks. However, this selection removes part of the information carried by brief peaks. The ablation reinforces this diagnosis: reducing the persistence requirement to one scale increases F1 but nearly doubles the number of events. A morphological planner should therefore trade off a fine branch, a multiscale branch, and expected relational cost. Such a policy remains to be evaluated.
+
+\subsection{Natural Language and Vector Retrieval}
+
+A language model can translate a free-form request into Core 0.2 and allow the parser to validate the resulting program. The decision remains symbolic and auditable. For vague queries not expressible by the core, a maximum-line encoder could produce a compact vector aligned with a pretrained text encoder. A natural hybrid architecture uses hard constraints in MorphoQL and residual similarity in a latent space. This extension is not implemented or evaluated here.
+
+\subsection{Morphological Rewriting and Counterfactuals}
+
+An explicit query supports controlled rewriting, for example replacing $[8,14]$ with $[18,28]$ or reversing a sign. Retrieving observed episodes satisfying the rewritten expression provides morphological analogues. This is shape editing or a morphological counterfactual, not a causal counterfactual for sales.
+
+\section{Limitations and Threats to Validity}
+
+\begin{enumerate}
+  \item \textbf{Narrow core.} Only \code{EDGE--THEN--WITHIN} chains are normative. Interval, oscillatory, and Boolean primitives remain future work.
+  \item \textbf{Relative correctness.} Equivalence concerns an already extracted finite relation; it does not prove that the events capture every relevant transition in the signal.
+  \item \textbf{Heuristic extractors.} Thresholds, link costs, strength rules, and merging rules are hand-designed. The ablation is targeted rather than a complete nested hyperparameter selection.
+  \item \textbf{Heuristic score.} Score coefficients are not derived from a probabilistic theory; they support ranking and calibration.
+  \item \textbf{Retrospective preprocessing.} The centered median and global weekly profile introduce temporal leakage if the experiment is interpreted as streaming.
+  \item \textbf{Pipeline comparison.} Branches have pipeline-specific hyperparameters and event densities. The benchmark does not isolate the causal effect of multiscale analysis or linking.
+  \item \textbf{Conditional uncertainty.} Main-benchmark intervals condition on the calibration split and thresholds; pairwise contrasts are exploratory and unadjusted for multiplicity.
+  \item \textbf{Synthetic data.} Injected patterns have controlled boundaries and do not cover all irregular sampling, missingness, intermittent demand, or real retail frequencies.
+  \item \textbf{Incomplete baselines.} The evaluation lacks detection comparisons with segmentation, shape expressions, STL/SSTS/T-ReX, the Matrix Profile, and learned models under common annotations.
+  \item \textbf{Witness scope.} Recomputation establishes consistency relative to the relation, implementation, and bound policy; it does not guarantee authenticity of an unanchored policy or identify the producer.
+  \item \textbf{Interoperable canonicalization.} Fingerprints use a deterministic JSON serialization defined by the Python prototype. Cross-language verification requires an independent specification of numbers, Unicode, key ordering, and composite values.
+  \item \textbf{Limited microbenchmark.} Peak memory, index optimization, and comparison with an industrial engine are not reported. At 10,000 events, only two-atom plans are measured.

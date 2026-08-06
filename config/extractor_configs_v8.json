@@ -1,0 +1,50 @@
+{
+  "DirectDelta": {
+    "config_kind": "extractor",
+    "extractor_name": "DirectDelta",
+    "node_threshold": 1.0,
+    "operator": "first_difference",
+    "peak_distance_days": 1,
+    "provenance_scale_days": 0.0,
+    "robust_scale": "1.4826 * MAD + epsilon",
+    "schema_version": "morphoql.configuration/0.8",
+    "singleton_persistence_convention": 1.0
+  },
+  "DoGMono": {
+    "config_kind": "extractor",
+    "derivative_order": 1,
+    "extractor_name": "DoGMono",
+    "gaussian_mode": "nearest",
+    "node_threshold": 1.0,
+    "operator": "gaussian_derivative",
+    "peak_distance_days": 2,
+    "robust_scale": "1.4826 * MAD + epsilon",
+    "scale_normalization": "multiply_by_sigma",
+    "schema_version": "morphoql.configuration/0.8",
+    "sigma_days": 1.5,
+    "singleton_persistence_convention": 1.0
+  },
+  "WTMMAggregated": {
+    "aggregate_smoothing_sigma_days": 1.2,
+    "config_kind": "extractor",
+    "derivative_order": 1,
+    "event_peak_distance_days": 2,
+    "event_threshold": 0.6,
+    "extractor_name": "WTMMAggregated",
+    "gaussian_mode": "nearest",
+    "node_threshold": 0.8,
+    "operator": "multiscale_gaussian_derivative_maxima",
+    "per_scale_peak_distance_factor": 0.5,
+    "per_scale_peak_distance_min_days": 1,
+    "per_scale_peak_distance_rule": "max(1, floor(scale_days / 2))",
+    "persistence_denominator": "number_of_configured_scales",
+    "provenance_support_window_days": 1,
+    "robust_scale": "1.4826 * MAD + epsilon",
+    "scale_normalization": "multiply_by_scale",
+    "scales_days": [1.0,2.0,3.0,4.0,5.0,7.0,10.0,14.0],
+    "schema_version": "morphoql.configuration/0.8"
+  },
+  "WTMMLines": {
+    "config_kind": "extractor","derivative_order": 1,"event_threshold": 0.3,"extractor_name": "WTMMLines","gaussian_mode": "nearest","link_strength_bonus": 0.03,"link_tie_break_rule": "cost_then_active_line_index_then_node_index","link_tolerance_factor": 0.65,"link_tolerance_floor_days": 2.0,"link_tolerance_intercept_days": 1.0,"max_scale_skip": 2,"max_strength_weight": 0.15,"merge_days": 2,"merged_force_policy": "strongest_line_force + secondary_line_weight * sum(other_line_forces)","merged_provenance_policy": "ordered_union_without_duplicate_nodes","merged_time_policy": "time_of_strongest_line","min_scales": 2,"node_threshold": 0.65,"operator": "greedy_multiscale_maximum_line_chaining","per_scale_peak_distance_factor": 0.5,"per_scale_peak_distance_min_days": 1,"per_scale_peak_distance_rule": "max(1, floor(scale_days / 2))","persistence_denominator": "number_of_configured_scales","persistence_weight": 1.7,"representative_fallback": "smallest_scale_node","representative_fine_scale_max_days": 3.0,"representative_time_weight": "node_strength","robust_scale": "1.4826 * MAD + epsilon","scale_normalization": "multiply_by_scale","scales_days": [1.0,2.0,3.0,4.0,5.0,7.0,10.0,14.0],"schema_version": "morphoql.configuration/0.8","secondary_line_weight": 0.1,"time_std_penalty": 0.03
+  }
+}

@@ -1,0 +1,112 @@
+Signal Temporal Logic formalizes temporal properties over real-valued signals and provides a quantitative robustness semantics \cite{maler2004,donze2010}. xSTL and AMT combine logic and timed regular expressions for qualitative and quantitative trace analysis \cite{nickovic2018}. \emph{Quantitative Regular Expressions} (QREs) describe modular numerical transformations over streams and have been used to express detectors in both the time and wavelet domains; StreamQRE compiles such specifications modularly for streaming data \cite{abbas2019,mamouras2017}. StreamQL provides an algebra of stream transformations combining relational constructs, dataflow, and temporal operators \cite{kong2020}. MorphoQL differs from these general languages through an event ontology materialized from time--scale maxima and maximum lines, exposed relationally with coefficient-level provenance.
+
+Within data systems, SASE and \code{MATCH\_RECOGNIZE} recognize ordered event sequences \cite{gyllstrom2007,petkovic2022}. T-ReX extends \code{MATCH\_RECOGNIZE} with segment variables and an optimizer designed for time-series patterns \cite{huang2023}. MorphoQL can be viewed as a domain layer upstream of such engines: the extractor creates events, and the compiler can then produce joins, an automaton, or a row-pattern expression.
+
+\subsection{Symbolic Representations and Subsequence Search}
+
+Subsequence search based on Fourier representations, SAX, and the Matrix Profile provides effective solutions for query-by-example, motif discovery, and discord detection \cite{faloutsos1994,lin2007,yeh2016}. SAXRegEx combines a multivariate symbolic representation, regular expressions, and query expansion supporting duration variation and inter-channel offsets \cite{yu2023}. Shape expressions use regular expressions over parametric shapes with a noise-aware semantics \cite{nickovic2021}. MorphoQL mainly differs in its unit of indexing: multiscale events rather than complete numerical windows or segments.
+
+\subsection{Wavelet Maxima and Maximum Lines}
+
+Modulus maxima of a wavelet transform can localize singularities and track their propagation across scales \cite{mallat1992}. Ridges of analytic transforms instead characterize oscillatory components and their instantaneous frequencies \cite{lilly2010,lilly2017}. The present system uses \emph{modulus-maximum lines} for transitions. The term \emph{ridge} is reserved for non-evaluated oscillatory extensions.
+
+\subsection{Natural Language and Time Series}
+
+CLaSP, TS-CLIP, and LaSTR align text with series or segments in learned latent spaces \cite{ito2024,chen2025,dohi2026}. Sonar-TS retrieves candidates before verifying programs on the signal \cite{tan2026}. Grammar of the Wave composes primitives into logical trees and grounds them with vision--language agents \cite{wan2026}; ShapeTalk translates text and sketches into editable constraints \cite{sun2026}. T2SP deterministically transforms series into structured programs of trends, periods, and salient events for language-model reasoning \cite{kim2026}. MorphoQL follows a complementary architecture: natural language may compile into a visible program, but satisfaction of a structured query does not depend on a language model and is executed over an event relation with provenance.
+
+\subsection{Precise Positioning}
+
+\begin{table}[H]
+\centering
+\caption{Summary positioning. The claimed contribution concerns the interface between a WTMM event relation, compilation, and provenance.}
+\small
+\begin{tabularx}{\textwidth}{@{}p{3.3cm}p{3.0cm}p{3.0cm}X@{}}
+\toprule
+Family & Representation & Composition & Difference from MorphoQL \\
+\midrule
+SDL / SSTS / TSseek & alphabet or segments & regular expressions & no WTMM persistence as a relational attribute \\
+QRE / StreamQRE & quantitative stream transformations & modular composition & general language; no materialized WTMM relation with coefficient provenance \\
+SAXRegEx & multivariate SAX symbols & regular expressions and expansion & symbolic search over segments rather than a time--scale event relation \\
+ShapeSearch & perceptual trends and shapes & algebra, sketch, text & no multiscale event relation with coefficient provenance \\
+STL / xSTL & real-valued signal & timed logic & semantics over the signal rather than an extracted relation \\
+\code{MATCH\_RECOGNIZE} / T-ReX & rows or segments & regular patterns & morphological events must be defined upstream \\
+Shape expressions & parametric shapes & regular expressions & primitive fitting rather than time--scale lines \\
+CLaSP / LaSTR / Sonar-TS / T2SP & latent space, features, or program & text / programs & free-form interface or reasoning without an audited relational WTMM representation \\
+\textbf{MorphoQL Core 0.2} & signed WTMM events & chain and bounded gaps & multiscale provenance and direct relational compilation \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The claim is therefore not ``a new shape language in general,'' but the following:
+\begin{quote}
+MorphoQL investigates an event relation derived from signed maxima and maximum lines as the substrate of a declarative kernel that can be compiled and audited through time--scale provenance.
+\end{quote}
+
+\section{Data Model and Two Levels of Correctness}
+
+\subsection{Series, Extractor, and Event Relation}
+
+Let a corpus of regularly sampled series be
+\begin{equation}
+X^{(s)}=\bigl((t_i,x_i)\bigr)_{i=0}^{T_s-1},
+\qquad s\in\mathcal{S},
+\qquad t_{i+1}-t_i=\Delta t.
+\end{equation}
+A parameterized extractor $\Phi_{\theta}$ produces an ordered, partitioned relation:
+\begin{equation}
+\Events=\bigcup_{s\in\mathcal{S}}\Phi_{\theta}(X^{(s)}).
+\end{equation}
+A transition event is the tuple
+\begin{equation}
+ e=(s,\mathrm{id},\tau,\sigma,\alpha,\rho,a_{\min},a_{\max},\chi,\Gamma),
+\end{equation}
+where $s$ is the series identifier, $\mathrm{id}$ a content-addressed identifier, $\tau$ the representative time, $\sigma\in\{-1,+1\}$ the sign, $\alpha$ the strength, $\rho$ the persistence, $[a_{\min},a_{\max}]$ the scale span, $\chi$ the extractor name, and $\Gamma$ the ordered sequence of provenance nodes. The identifier is computed as
+\begin{equation}
+ \mathrm{id}=\code{evt\_}\,\Vert\,\operatorname{SHA256}\!\left(J(e\setminus\{\mathrm{id}\})\right),
+\end{equation}
+where $J$ is the strict deterministic-JSON serialization of all attributes, including provenance. This invariant is enforced by the public API: an explicit identifier supplied by the caller is accepted only when it equals this address. The identifier is therefore invariant to the insertion of an unrelated event; two exactly identical contents intentionally receive the same address and are rejected by the key constraint rather than hidden under arbitrary names. A node contains at least
+\begin{equation}
+ n=(a,t,c,b,k),
+\end{equation}
+where $a$ is scale, $t$ time, $c$ the normalized signed coefficient, $b$ the extraction branch, and $k$ an optional scale index.
+
+The materialized relation is closed by an explicit contract. For every $e\in\Events$,
+\begin{equation}
+\begin{aligned}
+ &(s,\mathrm{id})\text{ is a unique key and both components are nonempty},\\
+ &\tau,\alpha,\rho,a_{\min},a_{\max}\text{ are finite whenever present},\\
+ &\alpha\geq0,\qquad 0\leq\rho\leq1,\qquad 0\leq a_{\min}\leq a_{\max},\\
+ &\Gamma\neq\varnothing,\qquad \operatorname{sign}(c)=\sigma\text{ for every provenance node}.
+\end{aligned}
+\end{equation}
+An \code{EventRelation} instance is also homogeneous in $\chi$. In materialized Core 0.2, the scale span is mandatory and equals the extrema of $\Gamma$. For the four built-in extractors, preprocessing and extraction configurations must exactly equal the registered objects in \path{src/configuration.py}; this requirement also applies to an empty relation that claims the name of a built-in extractor. An empty external relation may omit a configuration, but it is then assigned the explicit status \code{empty\_unconfigured} and cannot be presented as registered. A materialized third-party extension is accepted as a \emph{declared and versioned} configuration when its \code{schema\_version}, \code{config\_kind}, extractor name, and JSON compatibility are valid. Configuration SHA-256 fingerprints are included in the relation.
+
+The API rejects duplicate keys, explicit identifiers inconsistent with content addressing, duplicate content, \code{NaN} or infinite values, negative strengths, persistence outside $[0,1]$, missing provenance, missing scale spans, and mixtures of extractors. Programmatic query parameters are closed as well: both bounds of every \code{Gap} must be finite and satisfy $0\leq l\leq u$; \code{MIN\_STRENGTH} is finite; the deduplication tolerance is either \code{None} or a finite nonnegative real; a projection cannot be empty; and aliases follow the same regular expression as the text parser. Serialization uses \code{allow\_nan=False}, and the application schema rejects silent conversion from a floating-point value or string to an integer. Built-in configurations are compared through deterministic JSON and their fingerprints, not through permissive Python-dictionary equality: payloads \code{2} and \code{2.0} remain distinct. All three strict engines apply the same validation even when they receive a raw event collection directly. The domain accepted by the implementation therefore matches the domain of the formal semantics and the primary key of the SQLite plan.
+
+Every match lies within one series partition $s$; cross-series joins are forbidden by the denotation, the Python engines, and the compiled SQL.
+
+\subsection{Two Complementary Provenance Layers}
+
+We distinguish:
+\begin{description}[style=nextline,leftmargin=1.2cm]
+  \item[Extraction provenance] the sequence $\Gamma$ of numerical nodes that produced each event;
+  \item[Query provenance] the normalized program, its AST, required and observed gaps, threshold, score, postprocessing order, and identifiers of the selected events.
+\end{description}
+These layers are materialized in an \code{ExecutionWitness}. Its strict deterministic-JSON serialization and round trip are tested. The object includes the schema version, the implementation version and SHA-256 fingerprint, the engine and strict plan, the fingerprint of the sorted relation, the registered or declared preprocessing and extractor configurations and their fingerprints, and the visible-output policy: total ordering, projection, limit, deduplication tolerance, and quasi-duplicate selection rule. It contains exactly as many events and identifiers as the query contains atoms, and exactly one observed and required gap per \code{THEN} operator. A match witness requires at least one visible output and a rank within that output.
+
+Four API levels are separated:
+\begin{itemize}
+  \item \code{ExecutionWitness.from\_json} performs strict schema deserialization without silent coercion;
+  \item \code{verify\_witness\_internal} recomputes the record's internal consistency;
+  \item \code{verify\_witness\_against\_relation} recompiles the query, verifies the input fingerprint, and recomputes the strict set through the declared engine;
+  \item \code{verify\_witness} reproduces the complete visible pipeline: normative ordering, deduplication, limit, and projection, then compares manifests, the projected row, and the rank.
+\end{itemize}
+Caller-supplied lists are objects to be compared; they do not become the source of truth. An externally expected policy may be bound explicitly to distinguish intrinsic consistency from authenticity of a claimed protocol. Built-in configurations come from the same \path{src/configuration.py} registry consumed by the extractors and protocol.
+
+\subsection{Execution Witness, Not an Absolute Proof}
+
+Two claims remain distinct:
+\begin{enumerate}
+  \item $\Events\models q$ means that an event tuple satisfies the syntax and constraints of $q$;
+  \item $X^{(s)}$ actually contains a given transition or shape is an empirical claim about the fidelity of $\Phi_{\theta}$.
+\end{enumerate}
